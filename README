@@ -1,0 +1,4 @@
+1) custom rebalance logic
+2) custom dual-offset logic
+3) lZ4AsyncHashMap with linked list of uncompressed blocks
+4) recursvie usecase
