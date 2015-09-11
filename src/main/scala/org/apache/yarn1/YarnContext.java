@@ -33,7 +33,6 @@ public class YarnContext {
     final private boolean localPathIsJar;
     final private Class<?> appClass;
     final private FileSystem distFs;
-    final private String appVersion;
     final private List<String> args;
     private static final Logger log = LoggerFactory.getLogger(YarnContext.class);
 
@@ -46,19 +45,13 @@ public class YarnContext {
         this.localPath = appClass.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
         this.localPathIsJar = localPath.endsWith(".jar");
         this.appName = appName;
-        // TODO move versioning to the application
-        if (localPathIsJar) {
-            this.appVersion = Resources.toString(this.getClass().getResource("/version.properties"), Charsets.UTF_8);//
-        } else {
-            this.appVersion = new String(Files.readAllBytes(Paths.get(localPath + "version.properties")));
-        }
         this.args = args;
     }
 
     public ContainerLaunchContext getContainer(boolean masterContext) throws IOException {
         ContainerLaunchContext context = Records.newRecord(ContainerLaunchContext.class);
         context.setEnvironment(prepareEnvironment());
-        context.setCommands(prepareCommands(masterContext));
+        context.setCommands(prepareCommands());
         context.setLocalResources(prepareLocalResource(appName, masterContext));
         distFs.close();
         Map<String, ByteBuffer> serviceData = Maps.newHashMap();
@@ -75,7 +68,7 @@ public class YarnContext {
             classPathEnv.append(new Path(localPath).getName());
         } else {
             classPathEnv.append(":"); // ApplicationConstants.CLASS_PATH_SEPARATOR
-            classPathEnv.append(new Path(localPath + appVersion + ".gz").getName());
+            classPathEnv.append(new Path(localPath + ".gz").getName());
         }
         for (String c : conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH, YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
             classPathEnv.append(":");// ApplicationConstants.CLASS_PATH_SEPARATOR
@@ -87,9 +80,8 @@ public class YarnContext {
 
     }
 
-    private List<String> prepareCommands(boolean isMasterContext) {
-        String command = "tar -xzf "+appVersion+".gz && java " + appClass.getName() + " " + StringUtils.join(" ", args);
-//         command += " >> /var/log/helloyarn.log 2>1";
+    private List<String> prepareCommands() {
+        String command = "tar -xzf " + appName + ".gz && java " + appClass.getName() + " " + StringUtils.join(" ", args);
         command += " 1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout";
         command += " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr";
         return Arrays.asList(command);
@@ -108,7 +100,7 @@ public class YarnContext {
                     scFileStatus.getLen(), scFileStatus.getModificationTime());
             localResources.put(jarName, scRsrc);
         } else {
-            String localArchive = localPath + appVersion+".gz";
+            String localArchive = localPath + appName + ".gz";
             try {
                 if (masterContext) {
                     log.info("Archiving " + localArchive);
@@ -117,14 +109,16 @@ public class YarnContext {
                         throw new IOException("Failed to executre tar -C command on: " + localPath);
                     }
                 }
-                Path dst = new Path(distFs.getHomeDirectory(), relativePrefix + "/" + appVersion + ".gz");
+                Path dst = new Path(distFs.getHomeDirectory(), relativePrefix + "/" + appName + ".gz");
+                URL yarnUrl = ConverterUtils.getYarnUrlFromURI(dst.toUri());
+                log.info("Updating resource " + dst + "...");
                 distFs.copyFromLocalFile(new Path(localArchive), dst);
                 FileStatus scFileStatus = distFs.getFileStatus(dst);
-                URL yarnUrl = ConverterUtils.getYarnUrlFromURI(dst.toUri());
-                log.info("Updating resource " + yarnUrl.getFile() + " " + scFileStatus.getLen());
+                log.info("Updated resource " + dst + " " + scFileStatus.getLen());
+
                 LocalResource scRsrc = LocalResource.newInstance(yarnUrl, LocalResourceType.ARCHIVE, LocalResourceVisibility.APPLICATION,
                         scFileStatus.getLen(), scFileStatus.getModificationTime());
-                localResources.put(appVersion+".gz", scRsrc);
+                localResources.put(appName+".gz", scRsrc);
             } catch (InterruptedException e) {
                 throw new IOException(e);
             }

@@ -32,9 +32,7 @@ public class YarnSpec {
         if (obj instanceof YarnSpec) {
             return ((YarnSpec) obj).capability.getMemory() == capability.getMemory()
                     && ((YarnSpec) obj).capability.getVirtualCores() == capability.getVirtualCores()
-                    && ((YarnSpec) obj).priority.equals(priority)
-                    && ((YarnSpec) obj).mainClass.equals(mainClass)
-                    ;
+                    && ((YarnSpec) obj).priority.equals(priority);
         } else {
             return false;
         }

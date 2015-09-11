@@ -12,7 +12,8 @@
         <hadoop.version>2.3.0-cdh5.0.3</hadoop.version>
         <!--<zookeeper.version>3.4.5</zookeeper.version>-->
         <kafka.version>0.8.2.1</kafka.version>
-        <scala.major>2.11</scala.major>
+        <scala.major>2.10</scala.major>
+        <scala.minor>2.10.4</scala.minor>
     </properties>
 
     <dependencies>
@@ -38,19 +39,19 @@
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-yarn-client</artifactId>
             <version>${hadoop.version}</version>
-            <scope>provided</scope>
+            <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
             <version>${hadoop.version}</version>
-            <scope>provided</scope>
+            <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-hdfs</artifactId>
             <version>${hadoop.version}</version>
-            <scope>provided</scope>
+            <!--<scope>provided</scope>-->
         </dependency>
         <!-- scala and logging -->
         <dependency>
@@ -66,7 +67,7 @@
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
-            <version>${scala.major}.2</version>
+            <version>${scala.minor}</version>
         </dependency>
         <dependency>
             <groupId>org.scalatest</groupId>
@@ -117,6 +118,23 @@
         </resources>
         <plugins>
             <plugin>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>2.10</version>
+                <executions>
+                    <execution>
+                        <id>extract</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>unpack-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>target/classes</outputDirectory>
+                            <excludeScope>provided</excludeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
@@ -129,7 +147,7 @@
                 <artifactId>maven-scala-plugin</artifactId>
                 <version>2.15.2</version>
                 <configuration>
-                    <scalaVersion>${scala.major}.2</scalaVersion>
+                    <scalaVersion>${scala.minor}</scalaVersion>
                     <jvmArgs>
                         <jvmArg>-Xmx4536m</jvmArg>
                     </jvmArgs>
@@ -204,7 +222,7 @@
                                 </filter>
                             </filters>
                             <shadedArtifactAttached>false</shadedArtifactAttached>
-                            <finalName>dxp-spark</finalName>
+                            <finalName>donut</finalName>
                             <transformers>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">

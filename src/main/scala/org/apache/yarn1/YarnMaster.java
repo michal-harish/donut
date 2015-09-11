@@ -10,6 +10,7 @@ import org.apache.hadoop.yarn.client.api.NMClient;
 import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.client.api.YarnClientApplication;
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,7 +21,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class YarnMaster extends YarnApp implements AMRMClientAsync.CallbackHandler {
+public class YarnMaster implements AMRMClientAsync.CallbackHandler {
 
     /**
      * This method should be called by the implementing application static main
@@ -101,17 +102,21 @@ public class YarnMaster extends YarnApp implements AMRMClientAsync.CallbackHandl
         }
 
         yarnClient.stop();
+
+        if (!report.getFinalApplicationStatus().equals(FinalApplicationStatus.SUCCEEDED)) {
+            System.exit(1);
+        }
     }
 
     /**
      * Static Main method will be executed in the ApplicationMaster container as
      * a result of the above submission. It is a default wrapper which will
-     * actually create an instance of the class passed as the first argument The
-     * first argument will be the application class
+     * actually create an instance of the class passed as the first argument
      */
     public static void main(String[] args) throws Exception {
         try {
             Class<? extends YarnMaster> appClass = Class.forName(args[0]).asSubclass(YarnMaster.class);
+            System.out.println("INSTANTIATING MASTER " + appClass.getName());
             YarnMaster.args = Arrays.asList(Arrays.copyOfRange(args, 2, args.length));
             YarnMaster master = appClass.newInstance();
             try {
@@ -135,7 +140,7 @@ public class YarnMaster extends YarnApp implements AMRMClientAsync.CallbackHandl
                 master.onCompletion();
             }
         } catch (Throwable e) {
-            e.printStackTrace();
+            e.printStackTrace(System.out);
             System.exit(1);
         }
     }
@@ -146,10 +151,10 @@ public class YarnMaster extends YarnApp implements AMRMClientAsync.CallbackHandl
      * class(YarnMaster)
      */
     public YarnMaster() {
-        super();
         this.log = LoggerFactory.getLogger(this.getClass());
         // TODO pass host port and url for tracking to a generic guice servlet
         try {
+            conf = new YarnConfiguration();
             rmClient = AMRMClientAsync.createAMRMClientAsync(100, this);
             rmClient.init(conf);
             rmClient.start();
@@ -165,6 +170,7 @@ public class YarnMaster extends YarnApp implements AMRMClientAsync.CallbackHandl
 
     private final Logger log;
     private static List<String> args;
+    private Configuration conf;
     private AMRMClientAsync<ContainerRequest> rmClient;
     private NMClient nmClient;
     final private List<YarnSpec> containerRequests = Lists.newLinkedList();
@@ -273,7 +279,6 @@ public class YarnMaster extends YarnApp implements AMRMClientAsync.CallbackHandl
                     nmClient.startContainer(container, context.getContainer(false));
 
                 } else {
-                    //FIXME have seen lots of these errors where they shouldn't be - investigate
                     throw new IllegalStateException("Could not assign allocated container " + container);
                 }
 
