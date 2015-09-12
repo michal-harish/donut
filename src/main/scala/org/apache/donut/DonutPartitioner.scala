@@ -13,6 +13,7 @@ class DonutPartitioner extends Partitioner {
 
   override def partition(key: Any, numPartitions: Int): Int = {
     if (key.isInstanceOf[Array[Byte]]) {
+      //TODO this is assuming the bytes are coming from Vid
       math.abs(ByteUtils.asIntValue(key.asInstanceOf[Array[Byte]])) % numPartitions
     } else {
       throw new IllegalArgumentException("Donut Partitioner can't partition message type " + key.getClass)

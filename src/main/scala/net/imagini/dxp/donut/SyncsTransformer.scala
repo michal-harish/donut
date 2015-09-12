@@ -10,70 +10,51 @@ import net.imagini.dxp.common.{Vid, Edge}
 import org.apache.donut.{DonutProducer, DonutConsumer}
 
 
-class SyncsTransformer(zooKeeper: String, brokers: String, numThreads: Int, producer: DonutProducer[GraphMessage]) {
-
-  val executor = Executors.newFixedThreadPool(numThreads)
+/**
+ * Transformer is defined by f(inMessage) -> outMessage
+ * @param zooKeeper
+ * @param producer
+ * @param idSpaces
+ */
+class SyncsTransformer(zooKeeper: String, producer: DonutProducer[GraphMessage], idSpaces: String*) extends Runnable {
 
   val intDecoder = new IntegerDecoderKafka08
   val vdnaMessageDecoder = new VDNAUniversalDeserializer
 
   val consumer = DonutConsumer(zooKeeper, "SyncsToGraphTransformer")
+  val stream = consumer.createMessageStreams(Map("datasync" -> 1))("datasync")(0)
 
-  def start {
-    val streams = consumer.createMessageStreams(Map("datasync" -> numThreads))("datasync")
-    for (stream <- streams) {
-      executor.submit(new SyncsTransformerThread(stream, "r"))
-    }
-  }
+  val idSpaceSet = idSpaces.toSet
 
-  def stop {
-    try {
-      consumer.shutdown
-    } finally {
-      if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-        executor.shutdownNow
-      }
-      producer.close
-    }
-  }
-
-
-  class SyncsTransformerThread(val stream: KafkaStream[Array[Byte], Array[Byte]], idSpaces: String*) extends Runnable {
-
-    val idSpaceSet = idSpaces.toSet
-
-    override def run {
-      val it = stream.iterator
-      while (it.hasNext) {
-        val msgAndMeta = it.next
-        val key = intDecoder.fromBytes(msgAndMeta.key)
-        val vdnaMsg = vdnaMessageDecoder.decodeBytes(msgAndMeta.message)
-        if (vdnaMsg.isInstanceOf[VDNAUserImport]) {
-          val importMsg = vdnaMsg.asInstanceOf[VDNAUserImport]
-          if (importMsg.getUserCookied &&
-            !importMsg.getUserOptOut &&
-            importMsg.getUserUid != null &&
-            importMsg.getPartnerUserId != null &&
-            idSpaceSet.contains(importMsg.getIdSpace)) {
-            //println(s"consuming ${importMsg}")
-            transformAndProduce(importMsg)
-          }
+  override def run {
+    val it = stream.iterator
+    while (it.hasNext) {
+      val msgAndMeta = it.next
+      val vdnaMsg = vdnaMessageDecoder.decodeBytes(msgAndMeta.message)
+      if (vdnaMsg.isInstanceOf[VDNAUserImport]) {
+        val importMsg = vdnaMsg.asInstanceOf[VDNAUserImport]
+        if (importMsg.getUserCookied &&
+          !importMsg.getUserOptOut &&
+          importMsg.getUserUid != null &&
+          importMsg.getPartnerUserId != null &&
+          idSpaceSet.contains(importMsg.getIdSpace)) {
+          transformAndProduce(importMsg)
         }
       }
-      System.out.println(s"Shutting down ConsumerThread ${Thread.currentThread.getId}"
-      )
     }
-
-    def transformAndProduce(importMsg: VDNAUserImport) = {
-      val vdnaId = Vid("vdna", importMsg.getUserUid.toString)
-      val partnerId = Vid(importMsg.getIdSpace, importMsg.getPartnerUserId)
-      val edge = Edge("AAT", 1.0, importMsg.getTimestamp)
-
-      producer.send(List(
-        GraphMessage(vdnaId, 1, Map(partnerId -> edge)),
-        GraphMessage(partnerId, 1, Map(vdnaId -> edge))))
-    }
+    System.out.println(s"Shutting down ConsumerThread ${Thread.currentThread.getId}")
   }
+
+  def transformAndProduce(importMsg: VDNAUserImport) = {
+    val vdnaId = Vid("vdna", importMsg.getUserUid.toString)
+    val partnerId = Vid(importMsg.getIdSpace, importMsg.getPartnerUserId)
+    val edge = Edge("AAT", 1.0, importMsg.getTimestamp)
+
+    producer.send(List(
+      GraphMessage(vdnaId, 1, Map(partnerId -> edge)),
+      GraphMessage(partnerId, 1, Map(vdnaId -> edge))))
+  }
+
 
 }
 

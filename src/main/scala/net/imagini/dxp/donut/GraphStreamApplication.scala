@@ -44,27 +44,26 @@ object GraphStreamContainer {
       val signal = new Object
 
       val producer = DonutProducer[GraphMessage](brokers)
-      val executor = Executors.newFixedThreadPool(1)
-      val transformer = new SyncsTransformer(zkHosts, brokers, numThreads = 1, producer)
+      val transformer = new SyncsTransformer(zkHosts, producer, "r", "d", "a")
       val processor = new RescursiveProcessorHighLevel(zkHosts, producer)
 
       @volatile var running = true
+      val executor = Executors.newFixedThreadPool(1)
       try {
         executor.submit(processor)
-        transformer.start
+        executor.submit(transformer)
         while (running) {
-          signal.synchronized(signal.wait(10000))
+          signal.synchronized(signal.wait(600000))
           println("num.recursive.messages = " + processor.counter.get + ", state.size = " + processor.state.size)
         }
       } finally {
-        transformer.stop
         executor.shutdownNow();
+        producer.close
       }
     } catch {
       case e: Throwable => {
         e.printStackTrace(System.out)
         //TODO Alert
-        Thread.sleep(100000)
       }
     }
   }
