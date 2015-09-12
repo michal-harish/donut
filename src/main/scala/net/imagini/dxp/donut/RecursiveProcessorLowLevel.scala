@@ -2,7 +2,7 @@ package net.imagini.dxp.donut
 
 import kafka.consumer.SimpleConsumer
 
-class RecursiveProcessor {
+class RecursiveProcessorLowLevel {
 
   val brokerHosts = (1 to 3).map(x => s"message-0${x}.prod.visualdna.com")
   val brokerPort = 9092

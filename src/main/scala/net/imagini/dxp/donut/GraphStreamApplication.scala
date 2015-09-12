@@ -26,7 +26,7 @@ object GraphStreamApplication extends App {
 class GraphStreamApplicationMaster extends YarnMaster {
 
   protected override def onStartUp(args: Array[String]) {
-    requestContainerGroup(12, GraphStreamContainer.getClass, args, 0, 1024, 1)
+    requestContainerGroup(12, GraphStreamContainer.getClass, Array("1"), 0, 10 * 1024, 1)
   }
   protected override def onCompletion(): Unit = {
 
@@ -43,23 +43,24 @@ object GraphStreamContainer {
       val signal = new Object
 
       val producer = DonutProducer[GraphMessage](brokers)
-      val transformer = new SyncsTransformer(zkHosts, brokers, numThreads = 1, producer)
-      val debugger = new Debugger(zkHosts, producer, numThreads = 1)
+      val transformer = new SyncsTransformer(zkHosts, brokers, numThreads = args(0).toInt, producer)
+      val processor = new RescursiveProcessorHighLevel(zkHosts, producer, numThreads = 1)
 
       @volatile var running = true
       try {
-        debugger.start
+        processor.start
         transformer.start
         while (running) {
           signal.synchronized(signal.wait(10000))
-          println(debugger.counter.get)
+          println(processor.counter.get)
         }
       } finally {
         transformer.stop
-        debugger.stop
+        processor.stop
       }
     } catch {
       case e: Throwable => e.printStackTrace(System.out)
+        Thread.sleep(10000)
     }
   }
 

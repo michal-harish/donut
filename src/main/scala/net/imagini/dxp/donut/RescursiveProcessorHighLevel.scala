@@ -12,7 +12,7 @@ import scala.collection.mutable
 /**
  * Created by mharis on 10/09/15.
  */
-class Debugger(zooKeeper: String, producer: DonutProducer[GraphMessage],  numThreads: Int) {
+class RescursiveProcessorHighLevel(zooKeeper: String, producer: DonutProducer[GraphMessage],  numThreads: Int) {
 
   val counter = new AtomicLong(0)
   val tester = DonutConsumer
