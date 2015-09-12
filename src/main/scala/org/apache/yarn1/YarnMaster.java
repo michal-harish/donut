@@ -1,19 +1,21 @@
 package org.apache.yarn1;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.api.records.Container;
-import org.apache.hadoop.yarn.api.records.ContainerStatus;
-import org.apache.hadoop.yarn.api.records.FinalApplicationStatus;
-import org.apache.hadoop.yarn.api.records.NodeReport;
+import org.apache.hadoop.yarn.api.records.*;
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest;
 import org.apache.hadoop.yarn.client.api.NMClient;
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -29,23 +31,21 @@ public class YarnMaster implements AMRMClientAsync.CallbackHandler {
     public static void main(String[] args) throws Exception {
         try {
             Class<? extends YarnMaster> appClass = Class.forName(args[0]).asSubclass(YarnMaster.class);
-            log.info("INSTANTIATING MASTER " + appClass.getName());
-            /**
-             * The application master instance now has an opportunity to
-             * request containers it needs in the constructor.
-             *
-             * For example to request 16 containers, with priority 1, 4 cores and
-             * 1024Mb of memory:
-             *
-             * for(int i=0; i< 16; i++) {
-             *  requestContainer(1, MyAppWorker.class,1024, 4);
-             * }
-             */
-
-            //appClass.getConstructor(String[].class).newInstance(Arrays.copyOfRange(args, 1, args.length));
+            Boolean autorestart = Boolean.valueOf(args[1]);
+            String[] originalArgs = Arrays.copyOfRange(args, 2, args.length);
+            log.info("Starting Master Instance: " + appClass.getName());
             YarnMaster master = appClass.newInstance();
             try {
-                master.onStartUp(args);
+                master.initialize(autorestart);
+                /**
+                 * The application master instance now has an opportunity to
+                 * request containers it needs in the onStartUp(args), e.g.to request 16 containers,
+                 * with priority 1, 4 cores and 1024Mb of memory:
+                 * for(int i=0; i< 16; i++) {
+                 *  requestContainer(1, MyAppWorker.class,1024, 4);
+                 * }
+                 */
+                master.onStartUp(originalArgs);
                 master.waitForCompletion();
             } catch (Throwable e) {
                 e.printStackTrace();
@@ -62,11 +62,13 @@ public class YarnMaster implements AMRMClientAsync.CallbackHandler {
     private Configuration conf;
     private AMRMClientAsync<ContainerRequest> rmClient;
     private NMClient nmClient;
+    private Boolean continuousService;
     final private String appName;
-    final private List<YarnContainer> containersToAllocate = Lists.newLinkedList();
-    final private AtomicInteger numRequestedContainers = new AtomicInteger(0);
-    final private AtomicInteger numCompletedContainers = new AtomicInteger(0);
+    final private LinkedHashMap<YarnContainer, ContainerRequest> containersToAllocate = Maps.newLinkedHashMap();
+    final private AtomicInteger numTasks = new AtomicInteger(0);
+    final private AtomicInteger numCompletedTasks = new AtomicInteger(0);
     final private AtomicBoolean killed = new AtomicBoolean(false);
+    final private Map<ContainerId, YarnContainer> runningContainers = Maps.newConcurrentMap();
 
     /**
      * Default constructor is run form the above main() method ...
@@ -75,21 +77,20 @@ public class YarnMaster implements AMRMClientAsync.CallbackHandler {
      */
     public YarnMaster() {
         // TODO pass host port and url for tracking to a generic guice servlet
-        appName =  this.getClass().getSimpleName();
-        try {
-            conf = new YarnConfiguration();
-            rmClient = AMRMClientAsync.createAMRMClientAsync(100, this);
-            rmClient.init(conf);
-            rmClient.start();
-            rmClient.registerApplicationMaster("", 0, "");
-            nmClient = NMClient.createNMClient();
-            nmClient.init(conf);
-            nmClient.start();
-            YarnClient.distributeJar(conf, appName);
-        } catch (Throwable e) {
-            log.error("Could not instantiate Application Master", e);
-            System.exit(2);
-        }
+        this.appName = this.getClass().getSimpleName();
+        conf = new YarnConfiguration();
+        rmClient = AMRMClientAsync.createAMRMClientAsync(100, this);
+        rmClient.init(conf);
+        nmClient = NMClient.createNMClient();
+        nmClient.init(conf);
+    }
+
+    private void initialize(Boolean continuousService) throws IOException, YarnException {
+        this.continuousService = continuousService;
+        rmClient.start();
+        rmClient.registerApplicationMaster("", 0, "");
+        nmClient.start();
+        YarnClient.distributeJar(conf, appName);
     }
 
     protected void onStartUp(String[] args) throws Exception {
@@ -100,19 +101,22 @@ public class YarnMaster implements AMRMClientAsync.CallbackHandler {
         /** To be implemented by application... **/
     }
 
+    final private void requestContainer(YarnContainer spec) {
+        ContainerRequest containerAsk = new ContainerRequest(spec.capability, null, null, spec.priority);
+        synchronized (containersToAllocate) {
+            containersToAllocate.put(spec, containerAsk);
+        }
+        rmClient.addContainerRequest(containerAsk);
+        numTasks.incrementAndGet();
+    }
+
     final protected void requestContainerGroup(
             int numContainers, Class<?> mainClass, String[] args, int priority, int memoryMb, int numCores)
             throws Exception {
         log.info("Requesting container group: " + numContainers + " x (" + memoryMb + " x " + numCores + ")");
         for (int i = 0; i < numContainers; i++) {
             YarnContainer spec = new YarnContainer(conf, priority, memoryMb, numCores, appName, mainClass, args);
-            ContainerRequest containerAsk = new ContainerRequest(spec.capability, null, null, spec.priority);
-            synchronized (containersToAllocate) {
-                containersToAllocate.add(spec);
-            }
-            numRequestedContainers.incrementAndGet();
-            rmClient.addContainerRequest(containerAsk);
-
+            requestContainer(spec);
         }
         // wait for allocation before requesting other groups
         synchronized (containersToAllocate) {
@@ -124,7 +128,7 @@ public class YarnMaster implements AMRMClientAsync.CallbackHandler {
     }
 
     private void waitForCompletion() throws Exception {
-        while (numRequestedContainers.get() > numCompletedContainers.get()) {
+        while (numTasks.get() > numCompletedTasks.get()) {
             if (killed.get()) {
                 try {
                     rmClient.unregisterApplicationMaster(FinalApplicationStatus.KILLED, "", "");
@@ -141,35 +145,40 @@ public class YarnMaster implements AMRMClientAsync.CallbackHandler {
     final public void onContainersAllocated(List<Container> containers) {
         for (Container container : containers) {
             try {
-                YarnContainer selectedSpec = null;
+                Map.Entry<YarnContainer, ContainerRequest> selected = null;
                 synchronized (containersToAllocate) {
-                    int selected = -1;
-                    for (int h = 0; h < containersToAllocate.size(); h++) {
-                        YarnContainer spec = containersToAllocate.get(h);
+                    for(Map.Entry<YarnContainer, ContainerRequest> entry: containersToAllocate.entrySet()) {
+                        YarnContainer spec = entry.getKey();
                         if (spec.isSatisfiedBy(container)) {
-                            if (selected == -1) {
-                                selected = h;
+                            if (selected == null) {
+                                selected = entry;
                             } else {
-                                YarnContainer currentlySelected = containersToAllocate.get(selected);
-                                if (currentlySelected.capability.getMemory() > spec.capability.getMemory()
-                                        || currentlySelected.capability.getVirtualCores() >= spec.capability.getVirtualCores()
-                                        || currentlySelected.priority.getPriority() >= spec.priority.getPriority()) {
-                                    selected = h;
+                                YarnContainer selectedSoFar = selected.getKey();
+                                if (selectedSoFar.capability.getMemory() > spec.capability.getMemory()
+                                        || selectedSoFar.capability.getVirtualCores() >= spec.capability.getVirtualCores()
+                                        || selectedSoFar.priority.getPriority() >= spec.priority.getPriority()) {
+                                    selected = entry;
                                 }
                             }
                         }
                     }
-                    if (selected > -1) {
-                        selectedSpec = containersToAllocate.remove(selected);
+                    if (selected != null) {
+                        rmClient.removeContainerRequest(selected.getValue());
+                        containersToAllocate.remove(selected.getKey());
                     }
                 }
-                if (selectedSpec != null) {
-                    log.info("Launching Container " + container.getNodeHttpAddress() + " " + container + " to " + selectedSpec.mainClass);
-                    log.info("http://"+container.getNodeHttpAddress()+"/node/containerlogs/" + container.getId());
-                            nmClient.startContainer(container, selectedSpec.createContainerLaunchContext());
-
+                if (selected != null) {
+                    YarnContainer spec = selected.getKey();
+                    log.info("Launching Container " + container.getNodeHttpAddress() + " " + container + " to " + spec.mainClass);
+                    log.info(getContainerUrl(container));
+                    nmClient.startContainer(container, spec.createContainerLaunchContext());
+                    runningContainers.put(container.getId(), spec);
+                    log.info("Number of running containers = " + runningContainers.size());
                 } else {
-                    log.warn("Could not resolve allocated container with outstanding requested specs " + container.getId());
+                    log.warn("Could not resolve allocated container with outstanding requested specs: " + getContainerUrl(container)
+                            + ", container spec: " + container.getResource() +", priority:" + container.getPriority());
+                    rmClient.releaseAssignedContainer(container.getId());
+                    //FIXME rmClient seems to be re-requesting all the previously requested containers
                 }
 
             } catch (Throwable ex) {
@@ -179,13 +188,20 @@ public class YarnMaster implements AMRMClientAsync.CallbackHandler {
         }
     }
 
+    private String getContainerUrl(Container container) {
+        return "http://" + container.getNodeHttpAddress() + "/node/containerlogs/" + container.getId();
+    }
+
     @Override
     final public float getProgress() {
         float x;
-        if (numRequestedContainers.get() == 0) {
+        if (continuousService) {
+            x = 0f;
+            //TODO provide a way to report "lag" for continuous services
+        } else if (numTasks.get() == 0) {
             x = 0f;
         } else {
-            x = ((float) (numCompletedContainers).get()) / ((float) numRequestedContainers.get());
+            x = ((float) (numCompletedTasks.get())) / ((float) numTasks.get());
         }
         return x;
     }
@@ -193,8 +209,15 @@ public class YarnMaster implements AMRMClientAsync.CallbackHandler {
     @Override
     final public void onContainersCompleted(List<ContainerStatus> statuses) {
         for (ContainerStatus status : statuses) {
-            log.info("Completed container " + status.getContainerId());
-            numCompletedContainers.incrementAndGet();
+            YarnContainer completedSpec = runningContainers.remove(status.getContainerId());
+            if (completedSpec != null) {
+                log.info("Completed container " + status.getContainerId());
+                if (continuousService) {
+                    log.info("Auto-restarting container " + completedSpec);
+                    requestContainer(completedSpec);
+                }
+                numCompletedTasks.incrementAndGet();
+            }
         }
     }
 

@@ -68,6 +68,7 @@
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
             <version>${scala.minor}</version>
+            <!--FIXME scala-library.jar on classpath on hadoop nodes-->
             <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
@@ -124,7 +125,7 @@
                 <executions>
                     <execution>
                         <id>extract</id>
-                        <phase>package</phase>
+                        <phase>compile</phase>
                         <goals>
                             <goal>unpack-dependencies</goal>
                         </goals>
@@ -198,7 +199,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <!--
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -222,7 +222,7 @@
                                 </filter>
                             </filters>
                             <shadedArtifactAttached>false</shadedArtifactAttached>
-                            <finalName>donut</finalName>
+                            <finalName>GraphStreamYarnApp</finalName>
                             <transformers>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
@@ -231,7 +231,7 @@
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
-                                        <Main-Class>org.apache.donut</Main-Class>
+                                        <Main-Class>net.imagini.dxp.donut.GraphStreamApplication</Main-Class>
                                     </manifestEntries>
                                 </transformer>
                             </transformers>
@@ -239,7 +239,6 @@
                     </execution>
                 </executions>
             </plugin>
-            -->
         </plugins>
     </build>
 

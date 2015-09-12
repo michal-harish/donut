@@ -1,6 +1,7 @@
 package net.imagini.dxp.donut
 
 import java.io.FileInputStream
+import java.util.concurrent.Executors
 
 import org.apache.donut.DonutProducer
 import org.apache.hadoop.conf.Configuration
@@ -20,13 +21,13 @@ object GraphStreamApplication extends App {
   conf.setInt("master.priority", 0)
   conf.setLong("master.timeout.s", 3600L)
 
-  YarnClient.submitApplicationMaster(conf, 0, "developers", classOf[GraphStreamApplicationMaster], args)
+  YarnClient.submitApplicationMaster(conf, 0, "developers", false, classOf[GraphStreamApplicationMaster], args)
 }
 
 class GraphStreamApplicationMaster extends YarnMaster {
 
   protected override def onStartUp(args: Array[String]) {
-    requestContainerGroup(12, GraphStreamContainer.getClass, Array("1"), 0, 10 * 1024, 1)
+    requestContainerGroup(12, GraphStreamContainer.getClass, args, 0, 10 * 1024, 1)
   }
   protected override def onCompletion(): Unit = {
 
@@ -43,24 +44,28 @@ object GraphStreamContainer {
       val signal = new Object
 
       val producer = DonutProducer[GraphMessage](brokers)
-      val transformer = new SyncsTransformer(zkHosts, brokers, numThreads = args(0).toInt, producer)
-      val processor = new RescursiveProcessorHighLevel(zkHosts, producer, numThreads = 1)
+      val executor = Executors.newFixedThreadPool(1)
+      val transformer = new SyncsTransformer(zkHosts, brokers, numThreads = 1, producer)
+      val processor = new RescursiveProcessorHighLevel(zkHosts, producer)
 
       @volatile var running = true
       try {
-        processor.start
+        executor.submit(processor)
         transformer.start
         while (running) {
           signal.synchronized(signal.wait(10000))
-          println(processor.counter.get)
+          println("num.recursive.messages = " + processor.counter.get + ", state.size = " + processor.state.size)
         }
       } finally {
         transformer.stop
-        processor.stop
+        executor.shutdownNow();
       }
     } catch {
-      case e: Throwable => e.printStackTrace(System.out)
-        Thread.sleep(10000)
+      case e: Throwable => {
+        e.printStackTrace(System.out)
+        //TODO Alert
+        Thread.sleep(100000)
+      }
     }
   }
 
