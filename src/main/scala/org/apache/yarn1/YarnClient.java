@@ -5,6 +5,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.service.Service;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationResponse;
 import org.apache.hadoop.yarn.api.records.*;
 import org.apache.hadoop.yarn.client.api.YarnClientApplication;
@@ -40,17 +41,17 @@ public class YarnClient {
         int masterMemoryMb = conf.getInt("master.memory.mb", 256);
         int masterNumCores = conf.getInt("master.num.cores", 1);
 
-        org.apache.hadoop.yarn.client.api.YarnClient yarnClient = org.apache.hadoop.yarn.client.api.YarnClient.createYarnClient();
+        final org.apache.hadoop.yarn.client.api.YarnClient yarnClient = org.apache.hadoop.yarn.client.api.YarnClient.createYarnClient();
         yarnClient.init(conf);
         yarnClient.start();
 
         for (NodeReport report : yarnClient.getNodeReports(NodeState.RUNNING)) {
-            log.info("Node report:" + report.getNodeId() + " @ " + report.getHttpAddress() + " | " + report.getCapability());
+            log.debug("Node report:" + report.getNodeId() + " @ " + report.getHttpAddress() + " | " + report.getCapability());
         }
 
         YarnClientApplication app = yarnClient.createApplication();
         GetNewApplicationResponse appResponse = app.getNewApplicationResponse();
-        ApplicationId appId = appResponse.getApplicationId();
+        final ApplicationId appId = appResponse.getApplicationId();
         if (appId == null) {
             System.exit(2);
         }
@@ -62,8 +63,8 @@ public class YarnClient {
         newArgs.add(continuousService.toString());
         for (String arg : args) newArgs.add(arg);
         YarnContainer masterContainer = new YarnContainer(
-            conf, priority, masterMemoryMb, masterNumCores,
-            appName, YarnMaster.class, newArgs.toArray(new String[newArgs.size()])
+                conf, priority, masterMemoryMb, masterNumCores,
+                appName, YarnMaster.class, newArgs.toArray(new String[newArgs.size()])
         );
 
         ApplicationSubmissionContext appContext = app.getApplicationSubmissionContext();
@@ -78,6 +79,22 @@ public class YarnClient {
 
         ApplicationReport report = yarnClient.getApplicationReport(appId);
         log.info("Tracking URL: " + report.getTrackingUrl());
+
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override public void run() {
+                if (!yarnClient.isInState(Service.STATE.STOPPED)) {
+                    log.info("Killing yarn application in shutdown hook");
+                    try {
+                        yarnClient.killApplication(appId);
+                    } catch (Throwable e) {
+                        e.printStackTrace(System.out);
+                    } finally {
+                        //yarnClient.stop();
+                    }
+                }
+            }
+        });
+
         float lastProgress = -0.0f;
         while (true) {
             Thread.sleep(1000);

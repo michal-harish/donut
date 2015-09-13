@@ -2,6 +2,7 @@ package net.imagini.dxp.donut
 
 import java.nio.ByteBuffer
 
+import kafka.message.MessageAndMetadata
 import net.imagini.dxp.common.{Vid, Edge, ByteUtils}
 import org.apache.donut.DonutMessage
 
@@ -9,6 +10,7 @@ import org.apache.donut.DonutMessage
  * Created by mharis on 10/09/15.
  */
 object GraphMessage {
+  def apply(msgAndMeta: MessageAndMetadata[Array[Byte],Array[Byte]]) = new GraphMessage(msgAndMeta.key, msgAndMeta.message)
   def apply(key: Vid, iter: Int, edges: Map[Vid, Edge]) = new GraphMessage(serializeKey(key), serializePayload((iter.toByte, edges)))
   def serializeKey(key: Vid): Array[Byte] = key.bytes
   def serializePayload(payload: (Byte, Map[Vid, Edge])): Array[Byte] = {

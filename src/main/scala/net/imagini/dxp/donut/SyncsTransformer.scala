@@ -1,5 +1,6 @@
 package net.imagini.dxp.donut
 
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{Executors, TimeUnit}
 
 import kafka.consumer.KafkaStream
@@ -18,12 +19,12 @@ import org.apache.donut.{DonutProducer, DonutConsumer}
  */
 class SyncsTransformer(zooKeeper: String, producer: DonutProducer[GraphMessage], idSpaces: String*) extends Runnable {
 
-  val intDecoder = new IntegerDecoderKafka08
   val vdnaMessageDecoder = new VDNAUniversalDeserializer
 
   val consumer = DonutConsumer(zooKeeper, "SyncsToGraphTransformer")
-  val stream = consumer.createMessageStreams(Map("datasync" -> 1))("datasync")(0)
-
+  val stream = consumer.createMessageStreams(Map("datasync" -> 1))("datasync").head
+  val counter1 = new AtomicLong(0)
+  val counter2 = new AtomicLong(0)
   val idSpaceSet = idSpaces.toSet
 
   override def run {
@@ -31,6 +32,7 @@ class SyncsTransformer(zooKeeper: String, producer: DonutProducer[GraphMessage],
     while (it.hasNext) {
       val msgAndMeta = it.next
       val vdnaMsg = vdnaMessageDecoder.decodeBytes(msgAndMeta.message)
+      counter1.incrementAndGet
       if (vdnaMsg.isInstanceOf[VDNAUserImport]) {
         val importMsg = vdnaMsg.asInstanceOf[VDNAUserImport]
         if (importMsg.getUserCookied &&
@@ -39,6 +41,7 @@ class SyncsTransformer(zooKeeper: String, producer: DonutProducer[GraphMessage],
           importMsg.getPartnerUserId != null &&
           idSpaceSet.contains(importMsg.getIdSpace)) {
           transformAndProduce(importMsg)
+          counter2.incrementAndGet
         }
       }
     }

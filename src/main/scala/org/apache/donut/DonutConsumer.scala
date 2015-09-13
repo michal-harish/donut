@@ -10,8 +10,8 @@ object DonutConsumer {
     Consumer.create(new ConsumerConfig(new java.util.Properties {
       put("zookeeper.connect", zooKeeperConnect)
       put("group.id", consumerGroupId)
-      put("zookeeper.session.timeout.ms", "400")
-      put("zookeeper.sync.time.ms", "200")
+      put("zookeeper.session.timeout.ms", "3000")
+      put("zookeeper.sync.time.ms", "500")
       put("auto.commit.interval.ms", "1000")
     }))
   }

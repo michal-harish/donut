@@ -5,6 +5,7 @@ import java.util.concurrent.Executors
 
 import org.apache.donut.DonutProducer
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.FileSystem
 import org.apache.yarn1.{YarnClient, YarnMaster}
 
 /**
@@ -13,21 +14,21 @@ import org.apache.yarn1.{YarnClient, YarnMaster}
 object GraphStreamApplication extends App {
   val conf: Configuration = new Configuration
 
-  conf.addResource(new FileInputStream("/opt/envs/stag/etc/hadoop/core-site.xml"))
-  conf.addResource(new FileInputStream("/opt/envs/stag/etc/hadoop/hdfs-site.xml"))
-  conf.addResource(new FileInputStream("/opt/envs/stag/etc/hadoop/yarn-site.xml"))
+  conf.addResource(new FileInputStream("/opt/envs/prod/etc/hadoop/core-site.xml"))
+  conf.addResource(new FileInputStream("/opt/envs/prod/etc/hadoop/hdfs-site.xml"))
+  conf.addResource(new FileInputStream("/opt/envs/prod/etc/hadoop/yarn-site.xml"))
   conf.set("classpath", "/opt/scala-2.10.4/lib/scala-library.jar")
   conf.set("master.queue", "developers")
   conf.setInt("master.priority", 0)
   conf.setLong("master.timeout.s", 3600L)
 
-  YarnClient.submitApplicationMaster(conf, 0, "developers", false, classOf[GraphStreamApplicationMaster], args)
+  YarnClient.submitApplicationMaster(conf, 0, "developers", true, classOf[GraphStreamApplicationMaster], args)
 }
 
 class GraphStreamApplicationMaster extends YarnMaster {
 
   protected override def onStartUp(args: Array[String]) {
-    requestContainerGroup(12, GraphStreamContainer.getClass, args, 0, 10 * 1024, 1)
+    requestContainerGroup(24, GraphStreamContainer.getClass, args, 0, 10 * 1024, 1)
   }
   protected override def onCompletion(): Unit = {
 
@@ -43,18 +44,21 @@ object GraphStreamContainer {
 
       val signal = new Object
 
-      val producer = DonutProducer[GraphMessage](brokers)
+      val producer = DonutProducer[GraphMessage](brokers, batchSize = 1000, numAcks = 0)
       val transformer = new SyncsTransformer(zkHosts, producer, "r", "d", "a")
-      val processor = new RescursiveProcessorHighLevel(zkHosts, producer)
+      val processor = new RecursiveProcessorHighLevel(zkHosts, producer)
 
       @volatile var running = true
-      val executor = Executors.newFixedThreadPool(1)
+      val executor = Executors.newCachedThreadPool()
       try {
         executor.submit(processor)
         executor.submit(transformer)
         while (running) {
-          signal.synchronized(signal.wait(600000))
-          println("num.recursive.messages = " + processor.counter.get + ", state.size = " + processor.state.size)
+          signal.synchronized(signal.wait(30000))
+          println(s"datasyncs(${transformer.counter1.get}) " +
+            s"=> transform(${transformer.counter2.get}) " +
+            s"=> graphstream(${processor.counter1.get},${processor.counter2.get},${processor.counter3.get},${processor.counter4.get}) " +
+            s"=> state.size = " + processor.localState.size)
         }
       } finally {
         executor.shutdownNow();
@@ -64,6 +68,7 @@ object GraphStreamContainer {
       case e: Throwable => {
         e.printStackTrace(System.out)
         //TODO Alert
+        System.exit(1)
       }
     }
   }
