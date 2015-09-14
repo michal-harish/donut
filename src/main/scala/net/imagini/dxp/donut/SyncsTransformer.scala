@@ -3,13 +3,11 @@ package net.imagini.dxp.donut
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{Executors, TimeUnit}
 
-import kafka.consumer.KafkaStream
+import kafka.consumer.{ConsumerConfig, Consumer}
+import kafka.producer.{KeyedMessage, Producer}
 import net.imagini.common.message.VDNAUserImport
-import net.imagini.common.messaging.kafka8.IntegerDecoderKafka08
 import net.imagini.common.messaging.serde.VDNAUniversalDeserializer
 import net.imagini.dxp.common.{Vid, Edge}
-import org.apache.donut.{DonutProducer, DonutConsumer}
-
 
 /**
  * Transformer is defined by f(inMessage) -> outMessage
@@ -17,11 +15,18 @@ import org.apache.donut.{DonutProducer, DonutConsumer}
  * @param producer
  * @param idSpaces
  */
-class SyncsTransformer(zooKeeper: String, producer: DonutProducer[GraphMessage], idSpaces: String*) {
+class SyncsTransformer(zooKeeper: String, producer: Producer[Array[Byte], Array[Byte]], idSpaces: String*) {
 
   val vdnaMessageDecoder = new VDNAUniversalDeserializer
 
-  val consumer = DonutConsumer(zooKeeper, "SyncsToGraphTransformer")
+  val consumer = Consumer.create(new ConsumerConfig(new java.util.Properties {
+    put("zookeeper.connect", zooKeeper)
+    put("group.id", "SyncsToGraphTransformer")
+    put("zookeeper.session.timeout.ms", "3000")
+    put("zookeeper.sync.time.ms", "500")
+    put("auto.commit.interval.ms", "1000")
+  }))
+
   val stream = consumer.createMessageStreams(Map("datasync" -> 1))("datasync").head
   val counter1 = new AtomicLong(0)
   val counter2 = new AtomicLong(0)
@@ -64,10 +69,12 @@ class SyncsTransformer(zooKeeper: String, producer: DonutProducer[GraphMessage],
       val vdnaId = Vid("vdna", importMsg.getUserUid.toString)
       val partnerId = Vid(importMsg.getIdSpace, importMsg.getPartnerUserId)
       val edge = Edge("AAT", 1.0, importMsg.getTimestamp)
-
-      producer.send(List(
-        GraphMessage(vdnaId, 1, Map(partnerId -> edge)),
-        GraphMessage(partnerId, 1, Map(vdnaId -> edge))))
+      producer.send(
+        new KeyedMessage[Array[Byte], Array[Byte]](
+          "graphstream", BSPMessage.encodeKey(vdnaId), BSPMessage.encodePayload((1, Map(partnerId -> edge)))),
+        new KeyedMessage[Array[Byte], Array[Byte]](
+          "graphstream", BSPMessage.encodeKey(partnerId), BSPMessage.encodePayload((1, Map(vdnaId -> edge))))
+      )
     }
   })
 

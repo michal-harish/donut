@@ -1,5 +1,7 @@
 package net.imagini.dxp.donut
 
+import java.nio.ByteBuffer
+
 import org.apache.donut.LocalStorage
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
@@ -8,6 +10,7 @@ import org.scalatest.Matchers
  * Created by mharis on 14/09/15.
  */
 class LocalStorageTest extends FlatSpec with Matchers {
+  implicit def stringAsByteBuffer(s: String) = ByteBuffer.wrap(s.getBytes())
 
   val storage = new LocalStorage[String](3)
   storage.put("9", "A")

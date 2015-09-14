@@ -23,10 +23,6 @@ class LocalStorage[V](val maxEntries: Int) {
 
   def size: Int = internal.size
 
-  def get(key: String) : Option[V] = get(ByteBuffer.wrap(key.getBytes()));
-  def put(key: String, value: V) : Unit = put(ByteBuffer.wrap(key.getBytes()), value);
-  def contains(key: String): Boolean = contains(ByteBuffer.wrap(key.getBytes()))
-
   def contains(key: ByteBuffer): Boolean = internal.containsKey(key)
 
   def put(key: ByteBuffer, value: V): Unit = {

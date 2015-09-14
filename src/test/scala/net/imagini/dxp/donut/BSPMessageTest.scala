@@ -1,20 +1,23 @@
 package net.imagini.dxp.donut
 
+import java.nio.ByteBuffer
+
 import net.imagini.dxp.common.{Edge, Vid}
 import org.scalatest.{Matchers, FlatSpec}
 
 /**
  * Created by mharis on 10/09/15.
  */
-class GraphMessageTest extends FlatSpec with Matchers {
+class BSPMessageTest extends FlatSpec with Matchers {
 
   behavior of "GraphMessage"
   it should "correctly serialize and deserialize payloads and keys" in {
     val k = Vid("vdna", "ffffffff-ffff-ffff-ffff-ffffffffffff")
+    BSPMessage.decodeKey(ByteBuffer.wrap(BSPMessage.encodeKey(k))) should be(k)
+
     val edges = Map(Vid("a", "1") -> Edge("AAT", 1.0, 1000L))
-    val msg = GraphMessage(k, 5, edges)
-    val bytes = msg.payload.map(_ & 0xff)
-    bytes should be (Seq(
+    val bytes = BSPMessage.encodePayload((5, edges))
+    bytes.map(_ & 0xff) should be (Seq(
       5, //iteration
       0,1,  //number of edges
         0,0,0,0,0,0,3,232, // ts
@@ -26,8 +29,7 @@ class GraphMessageTest extends FlatSpec with Matchers {
           0,250 //vendor
     ))
 
-    msg.decodeKey should be(k)
-    msg.decodePayload should be((5,edges))
+    BSPMessage.decodePayload(ByteBuffer.wrap(bytes)) should be((5,edges))
   }
 
 }
