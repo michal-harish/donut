@@ -22,7 +22,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
   val kafkaPort = config.get("donut.kafka.port")
   val signal = new Object
 
-  val producer = new Producer[Array[Byte], Array[Byte]](new ProducerConfig(new java.util.Properties {
+  val producerConfig = new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", brokers)
     put("request.required.acks", "0")
     put("producer.type", "async")
@@ -30,7 +30,9 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
     put("partitioner.class", classOf[VidPartitioner].getName)
     put("batch.num.messages", "500")
     put("compression.codec", "2") //SNAPPY
-  }))
+  })
+
+  val producer = new Producer[Array[Byte], Array[Byte]](producerConfig)
   //TODO generalise into StreamTransformation
   val transformer = new SyncsTransformer(zkHosts, producer, "r", "d", "a")
   //transformer.start
@@ -38,7 +40,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
   var lastProcessedOffset = -1L
 
   val MAX_ITER = 5
-  val MAX_EDGES = 2
+  val MAX_EDGES = 59
   //FIXME - even with 2 none get evicted
   val localState = new LocalStorage[mutable.Set[Vid]](500000)
   val counterReceived = new AtomicLong(0)

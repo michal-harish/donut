@@ -20,7 +20,7 @@ class GraphStreamApplication extends DonutApp[GraphStreamProcessUnit](false, "gr
   conf.addResource(new FileInputStream("/opt/envs/prod/etc/hadoop/yarn-site.xml"))
   conf.set("yarn.classpath", "/opt/scala-2.10.4/lib/scala-library.jar")
   conf.set("donut.zookeeper.connect", "message-01.prod.visualdna.com,message-02.prod.visualdna.com,message-03.prod.visualdna.com")
-  conf.set("donut.kafka.brokers", "message-01.prod.visualdna.com,message-02.prod.visualdna.com,message-03.prod.visualdna.com")
+  conf.set("donut.kafka.brokers", "message-01.prod.visualdna.com:9092,message-02.prod.visualdna.com:9092,message-03.prod.visualdna.com:9092")
   conf.set("donut.kafka.port", "9092")
 
   def runOnYarn: Unit = runOnYarn(conf)

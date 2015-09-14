@@ -50,7 +50,7 @@ case class KafkaUtils(val conf: Configuration) {
   private def getMetadata[R](f: (SimpleConsumer) => R): R = {
     val it = kafkaBrokers.split(",").iterator
     while (it.hasNext) {
-      val host = it.next
+      val host = it.next.split(":").head
       try {
         val consumer: SimpleConsumer = new SimpleConsumer(host, port, 100000, 64 * 1024, "leaderLookup")
         try {
