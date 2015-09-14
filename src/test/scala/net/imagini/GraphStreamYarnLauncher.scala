@@ -1,10 +1,10 @@
 package net.imagini
 
-import net.imagini.dxp.donut.GraphStreamApplication
+import net.imagini.dxp.donut.GraphStreamYarnApplication
 
 /**
  * Created by mharis on 11/09/15.
  */
 object GraphStreamYarnLauncher extends App {
-  GraphStreamApplication.main(args)
+  GraphStreamYarnApplication.main(args)
 }

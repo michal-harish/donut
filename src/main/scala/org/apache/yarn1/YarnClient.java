@@ -30,16 +30,15 @@ public class YarnClient {
      * container.
      */
     public static void submitApplicationMaster(
-            Configuration conf,
-            int priority,
-            String queue,
-            Boolean continuousService,
-            Class<? extends YarnMaster> appClass, String[] args
+            Configuration conf, Boolean continuousService, Class<? extends YarnMaster> appClass, String[] args
     ) throws Exception {
 
-        boolean keepContainers = conf.getBoolean("master.keepContainers", false);
-        int masterMemoryMb = conf.getInt("master.memory.mb", 256);
-        int masterNumCores = conf.getInt("master.num.cores", 1);
+        String appName = conf.get("yarn.name");
+        boolean keepContainers = conf.getBoolean("yarn.keepContainers", false);
+        String queue = conf.get("yarn.queue");
+        int masterPriority = conf.getInt("yarn.master.priority", 0);
+        int masterMemoryMb = conf.getInt("yarn.master.memory.mb", 256);
+        int masterNumCores = conf.getInt("yarn.master.num.cores", 1);
 
         final org.apache.hadoop.yarn.client.api.YarnClient yarnClient = org.apache.hadoop.yarn.client.api.YarnClient.createYarnClient();
         yarnClient.init(conf);
@@ -56,14 +55,13 @@ public class YarnClient {
             System.exit(2);
         }
 
-        final String appName = appClass.getSimpleName();
         YarnClient.distributeJar(conf, appName);
         List<String> newArgs = Lists.newLinkedList();
         newArgs.add(appClass.getName());
         newArgs.add(continuousService.toString());
         for (String arg : args) newArgs.add(arg);
         YarnContainer masterContainer = new YarnContainer(
-                conf, priority, masterMemoryMb, masterNumCores,
+                conf, masterPriority, masterMemoryMb, masterNumCores,
                 appName, YarnMaster.class, newArgs.toArray(new String[newArgs.size()])
         );
 

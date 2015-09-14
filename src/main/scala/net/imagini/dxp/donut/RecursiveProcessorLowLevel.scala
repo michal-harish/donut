@@ -28,38 +28,6 @@ class RecursiveProcessorLowLevel {
     throw new Exception("Could not establish connection with any of the seed brokers")
   }
 
-
-//  for (partition <- partitions) {
-//
-//    //load checkpointed state
-//
-//    //start simple consumer from the end of the checkpoint
-//
-//    //start CHM instance (which runs                 checkpoint thread
-//
-//    //start the processor thread (with it's own zk-based offset
-//    new Thread {
-//
-//      start
-//
-//      override def run = {
-//        //retrieve processor offset from zk
-//        val stream: Iterator = null
-//        while (stream.hasNext) {
-//          val msg = stream.next
-////          updateLocalState(msg)
-//
-////          if (msg.offset >= zk.offset) {
-////            process(msg)
-////            updateZkOffset(msg.offset)
-////          }
-//
-//        }
-//      }
-//    }
-//
-//  }
-
   def handleLeaderChange: Unit = {
 
   }
