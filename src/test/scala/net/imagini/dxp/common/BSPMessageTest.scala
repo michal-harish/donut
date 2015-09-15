@@ -1,9 +1,8 @@
-package net.imagini.dxp.donut
+package net.imagini.dxp.common
 
 import java.nio.ByteBuffer
 
-import net.imagini.dxp.common.{Edge, Vid}
-import org.scalatest.{Matchers, FlatSpec}
+import org.scalatest.{FlatSpec, Matchers}
 
 /**
  * Created by mharis on 10/09/15.

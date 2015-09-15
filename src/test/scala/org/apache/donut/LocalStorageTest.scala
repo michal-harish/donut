@@ -1,10 +1,8 @@
-package net.imagini.dxp.donut
+package org.apache.donut
 
 import java.nio.ByteBuffer
 
-import org.apache.donut.LocalStorage
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
+import org.scalatest.{FlatSpec, Matchers}
 
 /**
  * Created by mharis on 14/09/15.

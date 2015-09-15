@@ -2,9 +2,8 @@ package org.apache.donut
 
 import java.util.concurrent.{TimeUnit, Executors}
 
-import kafka.api.{FetchResponse, FetchRequestBuilder}
-import kafka.common.ErrorMapping
-import kafka.consumer.SimpleConsumer
+import kafka.api.FetchResponse
+import kafka.common.{TopicAndPartition, ErrorMapping}
 import org.apache.hadoop.conf.Configuration
 
 
@@ -22,31 +21,33 @@ import org.apache.hadoop.conf.Configuration
 abstract class DonutAppTask(config: Configuration, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
   extends Runnable {
 
-  private val kafkaUtils = KafkaUtils(config)
+  protected val kafkaUtils = KafkaUtils(config)
 
   private val topicPartitions: Map[String, Int] = kafkaUtils.getPartitionMap(topics)
 
+  private val bootstrap = config.getBoolean("donut.bootstrap", false)
+
   private val partitionsToConsume: Map[String, Seq[Int]] = topicPartitions.map { case (topic, numPhysicalPartitions) => {
     (topic, (0 to numPhysicalPartitions - 1).filter(_ % totalLogicalPartitions == logicalPartition))
-  }
-  }
-
-  private val executor = Executors.newFixedThreadPool(partitionsToConsume.map(_._2.size).sum)
+  }}
 
   final override def run: Unit = {
     println(s"Starting task for logical partition ${logicalPartition}/${totalLogicalPartitions}")
-    partitionsToConsume.foreach {
-      case (topic, partitions) => partitions.foreach(partition => {
-        executor.submit(new DonutFetcher(topic, partition))
+    val fetchers = partitionsToConsume.flatMap {
+      case (topic, partitions) => partitions.map(partition => {
+        new DonutFetcher(topic, partition, config.get("kafka.group.id"))
       })
     }
+    val executor = Executors.newFixedThreadPool(fetchers.size)
+    fetchers.foreach(fetcher => executor.submit(fetcher))
     executor.shutdown
     try {
       while (!Thread.interrupted()) {
         if (executor.awaitTermination(5, TimeUnit.SECONDS)) {
           return
         } else {
-          awaitingTermination
+          val (readProgress, processProgress) = fetchers.map(_.progress).reduce((f1,f2) => (f1._1 + f2._1, f1._2 + f2._2))
+          awaitingTermination(readProgress / fetchers.size, processProgress / fetchers.size)
         }
       }
     } finally {
@@ -54,30 +55,68 @@ abstract class DonutAppTask(config: Configuration, logicalPartition: Int, totalL
     }
   }
 
-  def awaitingTermination
+  def awaitingTermination(avgReadProgress: Float, avgProcessProgress: Float)
+
 
   def onShutdown
 
+  def asyncUpdateState(messageAndOffset: kafka.message.MessageAndOffset)
+
   def asyncProcessMessage(messageAndOffset: kafka.message.MessageAndOffset)
 
-  class DonutFetcher(topic: String, partition: Int) extends Runnable {
-    val clientName = "DonutFetcher_" + topic + "_" + partition
-    var readOffset: Long = -1
-    var consumer: SimpleConsumer = null
+  class DonutFetcher(topic: String, partition: Int, groupId: String) extends Runnable {
+    val topicAndPartition = new TopicAndPartition(topic, partition)
+    var consumer = new kafkaUtils.PartitionConsumer(topic, partition, groupId)
+
+    /**
+     * processOffset - persistent offset mark for remembering up to which point was the stream processed
+     */
+    var processOffset: Long = consumer.getOffset
+
+    /**
+     * readOffset - ephemeral offset mark for keeping the LocalState
+     */
+    var readOffset: Long = if (bootstrap) consumer.getEarliestOffset else processOffset
+
+    var lastOffsetCommit = -1L
+    val offsetCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10) // TODO configurable kafka.offset.auto...
+
+    def progress: (Float, Float) = {
+      val currentEarliestOffset = consumer.getEarliestOffset
+      val currentLatestOffset = consumer.getLatestOffset
+      val availableOffsets = currentLatestOffset - currentEarliestOffset
+      val processProgress = 100f * (processOffset - currentEarliestOffset) / availableOffsets
+      val readProgress = 100f * (readOffset - currentEarliestOffset) / availableOffsets
+      (readProgress, processProgress)
+    }
+
+
 
     override def run(): Unit = {
       try {
         while (!Thread.interrupted) {
-          val fetchResponse = doFetchRequest
+          //TODO this fetchSize of 100000 might need to be controlled by config if large batches are written to Kafka
+          val fetchResponse = doFetchRequest(readOffset, fetchSize = 10000)
           var numRead: Long = 0
-          for (messageAndOffset <- fetchResponse.messageSet(topic, partition)) {
+          val messageSet = fetchResponse.messageSet(topic, partition)
+          for (messageAndOffset <- messageSet) {
             val currentOffset = messageAndOffset.offset
             if (currentOffset >= readOffset) {
+              if (currentOffset >= processOffset) {
+                asyncProcessMessage(messageAndOffset)
+                processOffset = messageAndOffset.nextOffset
+              }
+              asyncUpdateState(messageAndOffset)
               readOffset = messageAndOffset.nextOffset
-              asyncProcessMessage(messageAndOffset)
-              numRead += 1
             }
+            numRead += 1
           }
+          val nanoTime = System.nanoTime
+          if (lastOffsetCommit + offsetCommitIntervalNanos < System.nanoTime) {
+            consumer.commitOffset(processOffset)
+            lastOffsetCommit = nanoTime
+          }
+
           if (numRead == 0) {
             try {
               Thread.sleep(1000) //Note: backoff sleep time
@@ -86,32 +125,29 @@ abstract class DonutAppTask(config: Configuration, logicalPartition: Int, totalL
             }
           }
         }
+      } catch {
+        //TODO propagate execption to the container so that it can exit with error code and inform AM
+        case e: Throwable => e.printStackTrace()
       } finally {
         if (consumer != null) consumer.close
       }
     }
 
-    def doFetchRequest: FetchResponse = {
+    def doFetchRequest(fetchOffset: Long, fetchSize: Int): FetchResponse = {
       var numErrors = 0
       do {
         if (consumer == null) {
-          val leadBroker = kafkaUtils.findLeader(topic, partition)
-          consumer = new SimpleConsumer(leadBroker, kafkaUtils.port, kafkaUtils.soTimeout, kafkaUtils.bufferSize, clientName)
-          readOffset = kafkaUtils.getEarliestOffset(consumer, topic, partition, clientName)
-          println(s"${clientName}, read from offset = ${readOffset}")
+          consumer = new kafkaUtils.PartitionConsumer(topic, partition, groupId)
         }
-        val req = new FetchRequestBuilder()
-          .clientId(clientName)
-          .addFetch(topic, partition, readOffset, 100000) // Note: this fetchSize of 100000 might need to be increased if large batches are written to Kafka
-          .build()
-        val fetchResponse = consumer.fetch(req);
+        val fetchResponse = consumer.fetch(fetchOffset, fetchSize)
 
         if (fetchResponse.hasError) {
           numErrors += 1
           fetchResponse.errorCode(topic, partition) match {
             case code if (numErrors > 5) => throw new Exception("Error fetching data from leader,  Reason: " + code)
             case ErrorMapping.OffsetOutOfRangeCode => {
-              readOffset = kafkaUtils.getEarliestOffset(consumer, topic, partition, clientName);
+              println(s"readOffset ${topic}/${partition} out of range, resetting to earliest offset ")
+              readOffset = consumer.getEarliestOffset
             }
             case code => {
               try {

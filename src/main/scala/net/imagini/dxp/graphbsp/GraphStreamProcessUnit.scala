@@ -1,11 +1,12 @@
-package net.imagini.dxp.donut
+package net.imagini.dxp.graphbsp
 
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicLong
 
+import kafka.message.MessageAndOffset
 import kafka.producer.{Producer, ProducerConfig}
-import net.imagini.dxp.common.{Edge, Vid}
-import org.apache.donut.{LocalStorage, DonutAppTask}
+import net.imagini.dxp.common.{VidPartitioner, BSPMessage, Edge, Vid}
+import org.apache.donut.{DonutAppTask, LocalStorage}
 import org.apache.hadoop.conf.Configuration
 
 import scala.collection.mutable
@@ -17,12 +18,10 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
   extends DonutAppTask(config, logicalPartition, totalLogicalPartitions, topics) {
 
 
-  val zkHosts = config.get("donut.zookeeper.connect")
-  val brokers = config.get("donut.kafka.brokers")
-  val kafkaPort = config.get("donut.kafka.port")
-  val signal = new Object
+  val zkHosts = config.get("zookeeper.connect")
+  val brokers = config.get("kafka.brokers")
 
-  val producerConfig = new ProducerConfig(new java.util.Properties {
+  val producer = new Producer[Array[Byte], Array[Byte]](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", brokers)
     put("request.required.acks", "0")
     put("producer.type", "async")
@@ -30,18 +29,13 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
     put("partitioner.class", classOf[VidPartitioner].getName)
     put("batch.num.messages", "500")
     put("compression.codec", "2") //SNAPPY
-  })
-
-  val producer = new Producer[Array[Byte], Array[Byte]](producerConfig)
+  }))
   //TODO generalise into StreamTransformation
-  val transformer = new SyncsTransformer(zkHosts, producer, "r", "d", "a")
-  //transformer.start
 
   var lastProcessedOffset = -1L
 
   val MAX_ITER = 5
   val MAX_EDGES = 59
-  //FIXME - even with 2 none get evicted
   val localState = new LocalStorage[mutable.Set[Vid]](500000)
   val counterReceived = new AtomicLong(0)
   val counterEvicted = new AtomicLong(0)
@@ -49,20 +43,22 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
   val counterUpdated = new AtomicLong(0)
 
   override def onShutdown: Unit = {
-    //transformer.stop
     producer.close
   }
 
-  override def awaitingTermination {
+  override def awaitingTermination(avgReadProgress: Float, avgProcessProgress: Float) {
     println(
-      s"datasyncs(${transformer.counter1.get}) " +
-        s"=> transform(${transformer.counter2.get}) " +
         s"=> graphstream(${counterReceived.get}) - evicted(${counterEvicted.get}}) => (${counterInitialised.get} + ${counterUpdated.get})) " +
         s"=> state.size = " + localState.size
     )
   }
 
-  //TODO generalise into RecursiveStreamProcessor
+  //FIXME under the current api design we are decoding the payload twice, but using kafka encoder is not optimal as we cannot make decision whether it's worth decoding at all
+  override def asyncUpdateState(messageAndOffset: MessageAndOffset): Unit = {
+    val (iteration, edges) = BSPMessage.decodePayload(messageAndOffset.message.payload)
+
+  }
+
   override def asyncProcessMessage(messageAndOffset: kafka.message.MessageAndOffset): Unit = {
     val msgOffset = messageAndOffset.offset
     counterReceived.incrementAndGet
@@ -114,5 +110,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
       }
     }
   }
+
+
 }
 

@@ -1,8 +1,7 @@
-package net.imagini.dxp.donut
+package net.imagini.dxp.common
 
 import kafka.producer.Partitioner
 import kafka.utils.VerifiableProperties
-import net.imagini.dxp.common.{Vid, ByteUtils}
 
 /**
  * Created by mharis on 10/09/15.

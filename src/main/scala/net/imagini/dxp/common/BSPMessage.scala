@@ -1,8 +1,6 @@
-package net.imagini.dxp.donut
+package net.imagini.dxp.common
 
 import java.nio.ByteBuffer
-
-import net.imagini.dxp.common.{Vid, Edge}
 
 /**
  * Created by mharis on 10/09/15.

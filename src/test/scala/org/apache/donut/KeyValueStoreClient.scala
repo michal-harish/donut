@@ -1,4 +1,4 @@
-package net.imagini.dxp.donut
+package org.apache.donut
 
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{Future, TimeUnit, TimeoutException}
