@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kafka.message.MessageAndOffset
 import kafka.producer.{Producer, ProducerConfig}
 import net.imagini.dxp.common.{VidPartitioner, BSPMessage, Edge, Vid}
-import org.apache.donut.{DonutAppTask, LocalStorage}
+import org.apache.donut.{DonutAppTaskRecursive, DonutAppTask, LocalStorage}
 import org.apache.hadoop.conf.Configuration
 
 import scala.collection.mutable
@@ -15,7 +15,7 @@ import scala.collection.mutable
  * Created by mharis on 14/09/15.
  */
 class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
-  extends DonutAppTask(config, logicalPartition, totalLogicalPartitions, topics) {
+  extends DonutAppTaskRecursive(config, logicalPartition, totalLogicalPartitions, topics) {
 
 
   val zkHosts = config.get("zookeeper.connect")
@@ -46,7 +46,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
     producer.close
   }
 
-  override def awaitingTermination(avgReadProgress: Float, avgProcessProgress: Float) {
+  override def awaitingTermination {
     println(
         s"=> graphstream(${counterReceived.get}) - evicted(${counterEvicted.get}}) => (${counterInitialised.get} + ${counterUpdated.get})) " +
         s"=> state.size = " + localState.size

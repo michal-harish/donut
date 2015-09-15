@@ -46,6 +46,7 @@ class DonutApp[T <: DonutAppTask](puMemoryMb: Int, cogroup: Boolean, topics: Str
         if (executor.awaitTermination(10, TimeUnit.SECONDS)) {
           System.exit(0)
         }
+        //TODO coordination here
       }
     } catch {
       case e: Throwable => {

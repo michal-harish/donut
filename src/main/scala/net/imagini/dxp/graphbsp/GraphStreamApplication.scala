@@ -9,7 +9,6 @@ import org.apache.donut.DonutApp
 class GraphStreamApplication extends DonutApp[GraphStreamProcessUnit](3 * 1024, false, "graphstream") {
   val config = new DXPConfig {
     set("kafka.group.id", "GraphStreamingBSP")
-    setBoolean("donut.bootstrap", true)
     set("yarn.name", "GraphStreamingBSP")
     set("yarn.queue", "developers")
     setInt("yarn.master.priority", 0)

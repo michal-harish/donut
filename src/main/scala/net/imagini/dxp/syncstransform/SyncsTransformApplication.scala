@@ -9,7 +9,6 @@ import org.apache.donut.DonutApp
 class SyncsTransformApplication extends DonutApp[SyncsTransformProcessUnit](512, false, "datasync") {
   val config = new DXPConfig {
     set("kafka.group.id", "SyncsToGraphTransformer")
-    setBoolean("donut.bootstrap", false)
     set("yarn.name", "SyncsToGraphTransformer")
     set("yarn.queue", "developers")
     setInt("yarn.master.priority", 0)
