@@ -12,10 +12,10 @@ class BSPMessageTest extends FlatSpec with Matchers {
   behavior of "GraphMessage"
   it should "correctly serialize and deserialize payloads and keys" in {
     val k = Vid("vdna", "ffffffff-ffff-ffff-ffff-ffffffffffff")
-    BSPMessage.decodeKey(ByteBuffer.wrap(BSPMessage.encodeKey(k))) should be(k)
+    BSPMessage.decodeKey(BSPMessage.encodeKey(k)) should be(k)
 
     val edges = Map(Vid("a", "1") -> Edge("AAT", 1.0, 1000L))
-    val bytes = BSPMessage.encodePayload((5, edges))
+    val bytes = BSPMessage.encodePayload((5, edges)).array
     bytes.map(_ & 0xff) should be (Seq(
       5, //iteration
       0,1,  //number of edges

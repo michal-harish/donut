@@ -1,5 +1,7 @@
 package net.imagini.dxp.common
 
+import java.nio.ByteBuffer
+
 import kafka.producer.Partitioner
 import kafka.utils.VerifiableProperties
 
@@ -10,9 +12,13 @@ class VidPartitioner extends Partitioner {
 
   def this(properties: VerifiableProperties) = this()
 
-  override def partition(key: Any, numPartitions: Int): Int = key match {
-    case a: Array[Byte] => math.abs(ByteUtils.asIntValue(a)) % numPartitions
-    case vid: Vid => math.abs(vid.hashCode) % numPartitions
-    case _  => throw new IllegalArgumentException("VidPartitioner can't partition key of type " + key.getClass)
+  override def partition(key: Any, numPartitions: Int): Int = {
+    val hash: Int = key match {
+      case a: Array[Byte] => ByteUtils.asIntValue(a)
+      case b: ByteBuffer => ByteUtils.asIntValue(b.array, b.arrayOffset)
+      case v: Vid => math.abs(v.hashCode) % numPartitions
+      case _ => throw new IllegalArgumentException("VidPartitioner can't partition key of type " + key.getClass)
+    }
+    math.abs(hash) % numPartitions
   }
 }

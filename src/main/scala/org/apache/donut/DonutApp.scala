@@ -20,10 +20,11 @@ class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]
   val kafkaUtils: KafkaUtils = new KafkaUtils(config)
   val topics = config.get("kafka.topics").split(",").toSeq
   val groupId = config.get("kafka.group.id")
-
-  var numLogicalPartitions = -1
-  var lastProgress: (Long, Float) = (-1, 0f)
   val updateFrequencyMs = TimeUnit.SECONDS.toMillis(30)
+
+  private var numLogicalPartitions = -1
+  private var lastProgress: (Long, Float) = (-1, 0f)
+
 
   final def runLocally(multiThreadMode: Boolean): Unit = {
     try {
@@ -39,7 +40,7 @@ class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]
         if (executor.awaitTermination(updateFrequencyMs, TimeUnit.MILLISECONDS)) {
           System.exit(0)
         }
-        println(s"Progress $getProgress")
+        println(s"Progress ${getProgress * 100.0}%")
       }
     } catch {
       case e: Throwable => {
@@ -49,10 +50,9 @@ class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]
     }
   }
 
-
-  final def runOnYarn(puMemoryMb: Int): Unit = {
+  final def runOnYarn(taskMemoryMb: Int): Unit = {
     try {
-      val args: Array[String] = Array(puMemoryMb.toString, "0")
+      val args: Array[String] = Array(taskMemoryMb.toString, "0")
       YarnClient.submitApplicationMaster(config, true, this.getClass, args)
     } catch {
       case e: Throwable => {
@@ -82,14 +82,13 @@ class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]
    */
   final protected override def getProgress: Float = {
     if (lastProgress._1 + updateFrequencyMs < System.currentTimeMillis) {
-      println(s"numLogicalPartitions ${numLogicalPartitions}, topics = ${topics} in group {$groupId}")
-      val offsets: Seq[(Long, Long, Long)] = kafkaUtils.getPartitionMap(topics).flatMap {
+      val offsets = kafkaUtils.getPartitionMap(topics).flatMap {
         case (topic, numPartitions) => (0 to numPartitions - 1).map(partition => {
           val leader = kafkaUtils.findLeader(topic, partition)
           val consumer = new kafkaUtils.PartitionConsumer(topic, partition, leader, 10000, 64 * 1024, groupId)
-          var result = (-1L, -1L, -1L)
+          var result = (topic, partition, -1L, -1L, -1L)
           try {
-            result = (consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
+            result = (topic, partition, consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
           } finally {
             consumer.close
           }
@@ -97,13 +96,14 @@ class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]
         })
       }.toSeq
 
-      val progress: Seq[Float] = offsets.map { case (earliest, consumed, latest) => {
+      val progress: Seq[Float] = offsets.map { case (topic, partition, earliest, consumed, latest) => {
         val availableOffsets = latest - earliest
-        100f * (consumed - earliest) / availableOffsets
+        (consumed - earliest).toFloat / availableOffsets.toFloat
       }
       }
+
       val avgProgress = progress.sum / progress.size
-      lastProgress = (System.currentTimeMillis, avgProgress)
+      lastProgress = (System.currentTimeMillis, math.max(0f,avgProgress))
     }
     lastProgress._2
   }

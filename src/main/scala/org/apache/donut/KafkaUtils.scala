@@ -142,7 +142,10 @@ case class KafkaUtils(val config: Configuration) {
     val topicAndPartition = new TopicAndPartition(topic, partition)
 
     def fetch(readOffset: Long, fetchSize: Int): FetchResponse = {
-      fetch(new FetchRequestBuilder().clientId(this.clientId).addFetch(topic, partition, readOffset, fetchSize).build())
+      fetch(new FetchRequestBuilder()
+          .clientId(this.clientId)
+          .addFetch(topic, partition, readOffset, fetchSize)
+          .build())
     }
 
     def getEarliestOffset: Long = getOffsetRange(this, topicAndPartition, kafka.api.OffsetRequest.EarliestTime)

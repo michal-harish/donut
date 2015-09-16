@@ -10,8 +10,8 @@ import org.apache.hadoop.conf.Configuration
 class GraphStreamApplication(config: Configuration) extends DonutApp[GraphStreamProcessUnit](config) {
   def this() = this(new DXPConfig {
     set("kafka.group.id", "GraphStreamingBSP")
-    set("kafka.topics", "graphstream")
-    setBoolean("kafka.cogroup", false)
+    set("kafka.topics", "graphstream,graphstate")
+    setBoolean("kafka.cogroup", true)
     set("yarn.name", "GraphStreamingBSP")
     set("yarn.queue", "developers")
     setInt("yarn.master.priority", 0)
