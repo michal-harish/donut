@@ -9,7 +9,7 @@ import kafka.producer.{ProducerConfig, Producer, KeyedMessage}
 import net.imagini.common.message.VDNAUserImport
 import net.imagini.common.messaging.serde.VDNAUniversalDeserializer
 import net.imagini.dxp.common._
-import org.apache.donut.{FetcherOnce, DonutAppTask}
+import org.apache.donut.{Fetcher, FetcherOnce, DonutAppTask}
 import org.apache.hadoop.conf.Configuration
 
 /**
@@ -43,7 +43,7 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
     println(s"datasync[${counterReceived.get}] => filter[${counterFiltered.get}] => graphstream[${counterProduced.get}] [invalid ${counterInvalid.get}]")
   }
 
-  override protected def createFetcher(topic: String, partition: Int, groupId: String): Runnable = {
+  override protected def createFetcher(topic: String, partition: Int, groupId: String): Fetcher = {
     topic match {
       case "datasync" => new FetcherOnce(kafkaUtils, topic, partition, groupId) {
         override def asyncProcessMessage(messageAndOffset: MessageAndOffset): Unit = {

@@ -33,7 +33,7 @@ abstract class DonutAppTask(config: Configuration, logicalPartition: Int, totalL
 
   protected def onShutdown
 
-  protected def createFetcher(topic: String, partition: Int, groupId: String): Runnable
+  protected def createFetcher(topic: String, partition: Int, groupId: String): Fetcher
 
   final override def run: Unit = {
     println(s"Starting Donut Task for logical partition ${logicalPartition}/${totalLogicalPartitions}")

@@ -25,11 +25,9 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
   val stateIn = new AtomicLong(0)
 
   val localState = new LocalStorage[Map[Vid, Edge]](500000)
-
-  val MAX_ITER = 5
   val MAX_EDGES = 59
 
-  override protected def createFetcher(topic: String, partition: Int, groupId: String): Runnable = {
+  override protected def createFetcher(topic: String, partition: Int, groupId: String): Fetcher = {
     topic match {
       case "graphstate" => new FetcherBootstrap(kafkaUtils, topic, partition, groupId) {
         def asyncProcessMessage(messageAndOffset: MessageAndOffset): Unit = {
@@ -40,6 +38,8 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
       }
 
       case "graphstream" => new FetcherOnce(kafkaUtils, topic, partition, groupId) {
+        val MAX_ITER = 5
+
         override def asyncProcessMessage(envelope: MessageAndOffset): Unit = {
           //TODO wait until graphstate fetcher is cought up
 
@@ -73,7 +73,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
     }
   }
 
-  val producerWithCompression = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+  private val producerWithCompression = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", brokers)
     put("request.required.acks", "0")
     put("producer.type", "async")
@@ -84,7 +84,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
   }))
 
   //TODO alter topic `graphstate` to use log compaction
-  val producerGraphstate = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+  private val producerGraphstate = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", brokers)
     put("request.required.acks", "0")
     put("producer.type", "async")
@@ -94,7 +94,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
     put("compression.codec", "0") //NONE - Compaction doesn't work for compressed topics
   }))
 
-  def setState(key: ByteBuffer, payload: ByteBuffer, edges: Map[Vid, Edge]) {
+  private def setState(key: ByteBuffer, payload: ByteBuffer, edges: Map[Vid, Edge]) {
     if (edges.size > MAX_EDGES) {
       localState.put(key, null)
       producerWithCompression.send(
