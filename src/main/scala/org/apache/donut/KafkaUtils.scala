@@ -1,10 +1,8 @@
 package org.apache.donut
 
-import java.io.IOException
-
 import kafka.api._
 import kafka.cluster.Broker
-import kafka.common.{OffsetAndMetadata, ErrorMapping, OffsetMetadataAndError, TopicAndPartition}
+import kafka.common.{OffsetAndMetadata, TopicAndPartition}
 import kafka.consumer.SimpleConsumer
 import org.apache.hadoop.conf.Configuration
 import org.slf4j.LoggerFactory

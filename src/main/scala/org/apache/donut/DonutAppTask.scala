@@ -1,9 +1,7 @@
 package org.apache.donut
 
-import java.util.concurrent.{TimeUnit, Executors}
+import java.util.concurrent.{Executors, TimeUnit}
 
-import kafka.api.FetchResponse
-import kafka.common.{TopicAndPartition, ErrorMapping}
 import org.apache.hadoop.conf.Configuration
 
 

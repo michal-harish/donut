@@ -9,7 +9,7 @@ import kafka.producer.{ProducerConfig, Producer, KeyedMessage}
 import net.imagini.common.message.VDNAUserImport
 import net.imagini.common.messaging.serde.VDNAUniversalDeserializer
 import net.imagini.dxp.common._
-import org.apache.donut.{Fetcher, FetcherOnce, DonutAppTask}
+import org.apache.donut.{ByteBufferEncoder, Fetcher, FetcherOnce, DonutAppTask}
 import org.apache.hadoop.conf.Configuration
 
 /**
