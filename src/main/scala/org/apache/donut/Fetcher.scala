@@ -9,14 +9,19 @@ import kafka.message.MessageAndOffset
 /**
  * Created by mharis on 16/09/15.
  */
-abstract class Fetcher(val kafkaUtils: KafkaUtils, topic: String, partition: Int, groupId: String) extends Runnable {
+abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, groupId: String) extends Runnable {
+
+
   final protected val topicAndPartition = new TopicAndPartition(topic, partition)
-  final protected var consumer = new kafkaUtils.PartitionConsumer(topic, partition, groupId)
+  final protected var consumer = new task.kafkaUtils.PartitionConsumer(topic, partition, groupId)
   private var lastOffsetCommit = -1L
   private val offsetCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10) // TODO configurable kafka.offset.auto...
 
   protected val initialOffset: Long = consumer.getEarliestOffset
-  def asyncProcessMessage(messageAndOffset: MessageAndOffset): Unit
+
+  protected def handleMessage(messageAndOffset: MessageAndOffset): Unit
+
+  private[donut] def internalHandleMessage(messageAndOffset: MessageAndOffset): Unit
 
   override def run(): Unit = {
     try {
@@ -29,7 +34,7 @@ abstract class Fetcher(val kafkaUtils: KafkaUtils, topic: String, partition: Int
         for (messageAndOffset <- messageSet) {
           val currentOffset = messageAndOffset.offset
           if (currentOffset >= processOffset) {
-            asyncProcessMessage(messageAndOffset)
+            internalHandleMessage(messageAndOffset)
             processOffset = messageAndOffset.nextOffset
           }
           numRead += 1
@@ -61,7 +66,7 @@ abstract class Fetcher(val kafkaUtils: KafkaUtils, topic: String, partition: Int
     var numErrors = 0
     do {
       if (consumer == null) {
-        consumer = new kafkaUtils.PartitionConsumer(topic, partition, groupId)
+        consumer = new task.kafkaUtils.PartitionConsumer(topic, partition, groupId)
       }
       val fetchResponse = consumer.fetch(tryFetchOffset, fetchSize)
 

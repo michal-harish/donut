@@ -8,10 +8,11 @@ import kafka.utils.VerifiableProperties
 /**
  * Created by mharis on 10/09/15.
  */
-class VidPartitioner extends Partitioner {
+class KafkaVidPartitioner extends Partitioner {
 
   def this(properties: VerifiableProperties) = this()
 
+  //FIXME this partitioner doesn't seem to be symmetric but the RegionPartitioner in dxp hbase works so maybe use that
   override def partition(key: Any, numPartitions: Int): Int = {
     val hash: Int = key match {
       case a: Array[Byte] => ByteUtils.asIntValue(a)

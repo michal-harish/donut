@@ -1,6 +1,6 @@
 package org.apache.donut
 
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.{ConcurrentHashMap, Executors, TimeUnit}
 
 import org.apache.hadoop.conf.Configuration
 
@@ -16,16 +16,20 @@ import org.apache.hadoop.conf.Configuration
  *
  */
 
-abstract class DonutAppTask(config: Configuration, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
+abstract class DonutAppTask(config: Configuration, val logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
   extends Runnable {
 
-  protected val kafkaUtils = KafkaUtils(config)
+  private[donut] val kafkaUtils = KafkaUtils(config)
 
   private val topicPartitions: Map[String, Int] = kafkaUtils.getPartitionMap(topics)
 
   protected val partitionsToConsume: Map[String, Seq[Int]] = topicPartitions.map { case (topic, numPhysicalPartitions) => {
     (topic, (0 to numPhysicalPartitions - 1).filter(_ % totalLogicalPartitions == logicalPartition))
   }}
+
+  @volatile private[donut] var bootSequenceCompleted = false
+
+  private[donut] val bootSequence = new ConcurrentHashMap[String, Boolean]()
 
   protected def awaitingTermination
 
@@ -40,8 +44,11 @@ abstract class DonutAppTask(config: Configuration, logicalPartition: Int, totalL
         createFetcher(topic, partition, config.get("kafka.group.id"))
       })
     }
+    bootSequenceCompleted = bootSequence.size == 0
+    if (bootSequenceCompleted) println("No boot sequence required, launching.")
     val executor = Executors.newFixedThreadPool(fetchers.size)
     fetchers.foreach(fetcher => executor.submit(fetcher))
+    //TODO handle fetcher failures and close (it's actually happening but don't know why)
     executor.shutdown
     try {
       while (!Thread.interrupted()) {

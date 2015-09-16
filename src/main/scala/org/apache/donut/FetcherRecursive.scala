@@ -7,8 +7,9 @@ import kafka.message.MessageAndOffset
 /**
  * Created by mharis on 16/09/15.
  */
-abstract class FetcherRecursive (kafkaUtils: KafkaUtils, topic: String, partition: Int, groupId: String)
-  extends Fetcher(kafkaUtils, topic, partition, groupId) {
+@deprecated
+abstract class FetcherRecursive (task: DonutAppTask, topic: String, partition: Int, groupId: String)
+  extends Fetcher(task, topic, partition, groupId) {
 
   /**
    * processOffset - persistent offset mark for remembering up to which point was the stream processed
@@ -23,7 +24,7 @@ abstract class FetcherRecursive (kafkaUtils: KafkaUtils, topic: String, partitio
   var lastOffsetCommit = -1L
   val offsetCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10) // TODO configurable kafka.offset.auto...
 
-  def asyncProcessMessage(messageAndOffset: MessageAndOffset): Unit
+  def internalHandleMessage(messageAndOffset: MessageAndOffset): Unit
 
   def asyncUpdateState(messageAndOffset: MessageAndOffset): Unit
 
@@ -38,7 +39,7 @@ abstract class FetcherRecursive (kafkaUtils: KafkaUtils, topic: String, partitio
           val currentOffset = messageAndOffset.offset
           if (currentOffset >= readOffset) {
             if (currentOffset >= processOffset) {
-              asyncProcessMessage(messageAndOffset)
+              internalHandleMessage(messageAndOffset)
               processOffset = messageAndOffset.nextOffset
             }
             asyncUpdateState(messageAndOffset)

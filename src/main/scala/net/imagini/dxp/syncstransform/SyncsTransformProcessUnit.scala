@@ -30,7 +30,7 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
     put("request.required.acks", "0")
     put("producer.type", "async")
     put("serializer.class", classOf[ByteBufferEncoder].getName)
-    put("partitioner.class", classOf[VidPartitioner].getName)
+    put("partitioner.class", classOf[KafkaVidPartitioner].getName)
     put("batch.num.messages", "500")
     put("compression.codec", "2") //SNAPPY
   }))
@@ -45,8 +45,8 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
 
   override protected def createFetcher(topic: String, partition: Int, groupId: String): Fetcher = {
     topic match {
-      case "datasync" => new FetcherOnce(kafkaUtils, topic, partition, groupId) {
-        override def asyncProcessMessage(messageAndOffset: MessageAndOffset): Unit = {
+      case "datasync" => new FetcherOnce(this, topic, partition, groupId) {
+        override def handleMessage(messageAndOffset: MessageAndOffset): Unit = {
           val payload = messageAndOffset.message.payload
           //FIXME now that we have ByteBuffers vdna decoder should support offset to deserialize from
           val payloadArray: Array[Byte] = util.Arrays.copyOfRange(payload.array, payload.arrayOffset(), payload.arrayOffset + messageAndOffset.message.payloadSize )

@@ -90,6 +90,7 @@ case class KafkaUtils(val config: Configuration) {
 
 
   protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long) = {
+    //TODO implement retries
     getCoordinator(groupId) match {
       case None => throw new IllegalStateException
       case Some(coordinator) => {
