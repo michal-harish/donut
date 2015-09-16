@@ -33,9 +33,12 @@ public class YarnClient {
      * container.
      */
     public static void submitApplicationMaster(
-            Configuration conf, Boolean continuousService, Class<? extends YarnMaster> appClass, String[] args
+            Configuration conf, Boolean autorestartContainers, Class<? extends YarnMaster> appClass, String[] args
     ) throws Exception {
 
+        conf.set("yarn.master.class", appClass.getName());
+        conf.setBoolean("yarn.container.autorestart", autorestartContainers);
+        log.info("Submitting application master class " + appClass.getName());
         String appName = conf.get("yarn.name");
         boolean keepContainers = conf.getBoolean("yarn.keepContainers", false);
         String queue = conf.get("yarn.queue");
@@ -59,14 +62,9 @@ public class YarnClient {
         }
 
         YarnClient.distributeJar(conf, appName);
-        List<String> newArgs = Lists.newLinkedList();
-        newArgs.add(appClass.getName());
-        newArgs.add(continuousService.toString());
-        for (String arg : args) newArgs.add(arg);
+
         YarnContainer masterContainer = new YarnContainer(
-                conf, masterPriority, masterMemoryMb, masterNumCores,
-                appName, YarnMaster.class, newArgs.toArray(new String[newArgs.size()])
-        );
+                conf, masterPriority, masterMemoryMb, masterNumCores, appName, YarnMaster.class, args);
 
         ApplicationSubmissionContext appContext = app.getApplicationSubmissionContext();
         appContext.setKeepContainersAcrossApplicationAttempts(keepContainers);

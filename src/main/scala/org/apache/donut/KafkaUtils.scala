@@ -12,12 +12,12 @@ import org.slf4j.LoggerFactory
 /**
  * Created by mharis on 14/09/15.
  */
-case class KafkaUtils(val conf: Configuration) {
+case class KafkaUtils(val config: Configuration) {
 
 
   private val log = LoggerFactory.getLogger(classOf[DonutApp[_]])
 
-  val kafkaBrokers = conf.get("kafka.brokers")
+  val kafkaBrokers = config.get("kafka.brokers")
   val soTimeout: Int = 100000
   val bufferSize: Int = 64 * 1024
 
@@ -27,7 +27,8 @@ case class KafkaUtils(val conf: Configuration) {
     resp.topicsMetadata.map(tm => (tm.topic, tm.partitionsMetadata.size)).toMap
   })
 
-  def getNumLogicalPartitions(topics: Seq[String], cogroup: Boolean): Int = {
+  def getNumLogicalPartitions(topics: Seq[String]): Int = {
+    val cogroup = config.getBoolean("kafka.cogroup", false)
     val topicParts = getPartitionMap(topics)
     val maxParts = topicParts.map(_._2).max
     val result = if (cogroup) {
@@ -69,25 +70,10 @@ case class KafkaUtils(val conf: Configuration) {
     return offsets(0)
   }
 
-  protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long) = {
-    getCoordinator(groupId) match {
-      case None => throw new IllegalStateException
-      case Some(coordinator) => {
-        val consumer = new SimpleConsumer(coordinator.host, coordinator.port, 100000, 64 * 1024, "consumerOffsetCommitter")
-        try {
-          val req = new OffsetCommitRequest(groupId, Map(topicAndPartition -> OffsetAndMetadata(offset)))
-          if (consumer.commitOffsets(req).hasError) throw new Exception(s"Error committing offset for conumser group `${groupId}`")
-        } finally {
-          consumer.close
-        }
-      }
-    }
-  }
-
   /**
-   * @return (erliest available, next to be consumed, latest available)
+   * @return next offset to be consumed in the given partition
    */
-  protected def getGroupOffset(groupId: String, topicAndPartition: TopicAndPartition): Long = {
+  def getGroupOffset(groupId: String, topicAndPartition: TopicAndPartition): Long = {
     getCoordinator(groupId) match {
       case None => -1L
       case Some(coordinator) => {
@@ -97,6 +83,25 @@ case class KafkaUtils(val conf: Configuration) {
           //FIXME handle errors, but fetchOffsets response doesn't have hasError method
           val consumed = consumer.fetchOffsets(req).requestInfo(topicAndPartition).offset
           consumed
+        } finally {
+          consumer.close
+        }
+      }
+    }
+  }
+
+
+  protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long) = {
+    getCoordinator(groupId) match {
+      case None => throw new IllegalStateException
+      case Some(coordinator) => {
+        val consumer = new SimpleConsumer(coordinator.host, coordinator.port, 100000, 64 * 1024, "consumerOffsetCommitter")
+        try {
+          val req = new OffsetCommitRequest(groupId, Map(topicAndPartition -> OffsetAndMetadata(offset)))
+          if (consumer.commitOffsets(req).hasError) throw new Exception(s"Error committing offset for conumser group `${groupId}`")
+          else {
+            log.debug(s"Committed offset for ${topicAndPartition} in group {$groupId} to ${offset}")
+          }
         } finally {
           consumer.close
         }
@@ -131,7 +136,7 @@ case class KafkaUtils(val conf: Configuration) {
     extends SimpleConsumer(leader.host, leader.port, soTimeout, bufferSize, s"${groupId}_${topic}_${partition}") {
 
     def this(topic: String, partition: Int, groupId: String) {
-      this(topic, partition, findLeader(topic, partition), 100000, 64 * 1024, s"${groupId}_${topic}_${partition}")
+      this(topic, partition, findLeader(topic, partition), 100000, 64 * 1024, groupId)
     }
 
     val topicAndPartition = new TopicAndPartition(topic, partition)

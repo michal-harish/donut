@@ -16,10 +16,7 @@ abstract class DonutAppTaskTransform(config: Configuration, logicalPartition: In
     new TransformFetcher(topic, partition, groupId)
   }
 
-  class TransformFetcher(topic: String, partition: Int, groupId: String) extends Runnable {
-    val topicAndPartition = new TopicAndPartition(topic, partition)
-    var consumer = new kafkaUtils.PartitionConsumer(topic, partition, groupId)
-
+  class TransformFetcher(topic: String, partition: Int, groupId: String) extends Fetcher(topic, partition, groupId) {
     /**
      * processOffset - persistent offset mark for remembering up to which point was the stream processed
      */
@@ -65,35 +62,5 @@ abstract class DonutAppTaskTransform(config: Configuration, logicalPartition: In
       }
     }
 
-    def doFetchRequest(fetchOffset: Long, fetchSize: Int): FetchResponse = {
-      var numErrors = 0
-      do {
-        if (consumer == null) {
-          consumer = new kafkaUtils.PartitionConsumer(topic, partition, groupId)
-        }
-        val fetchResponse = consumer.fetch(fetchOffset, fetchSize)
-
-        if (fetchResponse.hasError) {
-          numErrors += 1
-          fetchResponse.errorCode(topic, partition) match {
-            case code if (numErrors > 5) => throw new Exception("Error fetching data from leader,  Reason: " + code)
-            case ErrorMapping.OffsetOutOfRangeCode => {
-              println(s"readOffset ${topic}/${partition} out of range, resetting to earliest offset ")
-              processOffset = consumer.getLatestOffset
-            }
-            case code => {
-              try {
-                consumer.close
-              } finally {
-                consumer = null
-              }
-            }
-          }
-        } else {
-          return fetchResponse
-        }
-      } while (numErrors > 0)
-      throw new Exception("Error fetching data from leader, reason unknown")
-    }
   }
 }

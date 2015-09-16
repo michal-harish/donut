@@ -2,6 +2,8 @@ package org.apache.donut
 
 import java.util.concurrent.{TimeUnit, Executors}
 
+import kafka.api.FetchResponse
+import kafka.common.{TopicAndPartition, ErrorMapping}
 import org.apache.hadoop.conf.Configuration
 
 
@@ -56,6 +58,44 @@ abstract class DonutAppTask(config: Configuration, logicalPartition: Int, totalL
     } finally {
       onShutdown
     }
+  }
+
+  abstract class Fetcher(topic: String, partition: Int, groupId: String) extends Runnable {
+    protected val topicAndPartition = new TopicAndPartition(topic, partition)
+    protected var consumer = new kafkaUtils.PartitionConsumer(topic, partition, groupId)
+
+    protected def doFetchRequest(fetchOffset: Long, fetchSize: Int): FetchResponse = {
+      var tryFetchOffset = fetchOffset
+      var numErrors = 0
+      do {
+        if (consumer == null) {
+          consumer = new kafkaUtils.PartitionConsumer(topic, partition, groupId)
+        }
+        val fetchResponse = consumer.fetch(tryFetchOffset, fetchSize)
+
+        if (fetchResponse.hasError) {
+          numErrors += 1
+          fetchResponse.errorCode(topic, partition) match {
+            case code if (numErrors > 5) => throw new Exception("Error fetching data from leader,  Reason: " + code)
+            case ErrorMapping.OffsetOutOfRangeCode => {
+              tryFetchOffset = consumer.getLatestOffset
+              println(s"readOffset ${topic}/${partition} out of range, resetting to latest offset ${tryFetchOffset}")
+            }
+            case code => {
+              try {
+                consumer.close
+              } finally {
+                consumer = null
+              }
+            }
+          }
+        } else {
+          return fetchResponse
+        }
+      } while (numErrors > 0)
+      throw new Exception("Error fetching data from leader, reason unknown")
+    }
+
   }
 
 
