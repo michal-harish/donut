@@ -17,7 +17,7 @@
     </properties>
 
     <dependencies>
-        <!-- kafka and messaging -->
+        <!-- vdna libs -->
         <dependency>
             <groupId>net.imagini.common</groupId>
             <artifactId>messaging</artifactId>
@@ -27,15 +27,40 @@
                     <groupId>org.apache.kafka</groupId>
                     <artifactId>kafka_2.10</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>com.rabbitmq</groupId>
+                    <artifactId>amqp-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.rabbitmq</groupId>
+                    <artifactId>amqp-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>net.imagini.common</groupId>
+                    <artifactId>directory</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.beust</groupId>
+                    <artifactId>jcommander</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>net.jodah</groupId>
+                    <artifactId>lyra</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.reflections</groupId>
+                    <artifactId>reflections</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
+        <!-- kafka provided -->
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka_${scala.major}</artifactId>
             <version>${kafka.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!--  hadoop yarn provided dependencies -->
+        <!--  hadoop yarn provided -->
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-yarn-client</artifactId>
@@ -54,16 +79,18 @@
             <version>${hadoop.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!-- scala and logging -->
+        <!-- scala and logging provided -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.5</version>
+            <version>1.7.6</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.5</version>
+            <version>1.7.6</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>
@@ -71,6 +98,7 @@
             <version>${scala.minor}</version>
             <scope>provided</scope>
         </dependency>
+        <!-- testing only -->
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_${scala.major}</artifactId>
@@ -125,7 +153,7 @@
                 <executions>
                     <execution>
                         <id>extract</id>
-                        <phase>compile</phase>
+                        <phase>generate-sources</phase>
                         <goals>
                             <goal>unpack-dependencies</goal>
                         </goals>
@@ -133,6 +161,7 @@
                             <outputDirectory>target/classes</outputDirectory>
                             <includeScope>runtime</includeScope>
                             <excludeScope>provided</excludeScope>
+                            <includes>**/*.class,**/*.xml,**/*.properties</includes>
                         </configuration>
                     </execution>
                 </executions>

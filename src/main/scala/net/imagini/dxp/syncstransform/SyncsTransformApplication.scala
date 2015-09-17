@@ -18,8 +18,8 @@ class SyncsTransformApplication(config: Configuration) extends DonutApp[SyncsTra
     setLong("yarn.master.timeout.s", 3600L)
   })
 
-  //FIXME memory leak - even 2 GBs will kill container but this is a simple transformation 256Mb should be enough
-  def runOnYarn: Unit = runOnYarn(taskMemoryMb = 4 * 1024 )
+  //FIXME json deserializers kill memory - even 2 GBs will kill container but this is a simple transformation 256Mb should be enough
+  def runOnYarn: Unit = runOnYarn(taskMemoryMb = 512 )
 
   def runLocally: Unit = runLocally(multiThreadMode = false)
 }
