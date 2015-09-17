@@ -1,4 +1,4 @@
-import net.imagini.dxp.common.DXPConfig
+import net.imagini.dxp.common.VdnaClusterConfig
 import net.imagini.dxp.graphbsp.{GraphStreamApplication, GraphStreamYarnApplication}
 import net.imagini.dxp.syncstransform.SyncsTransformApplication
 import org.apache.donut.KafkaUtils
@@ -24,7 +24,7 @@ object SyncTransformYarnLauncher extends App {
 
 object OffsetManager extends App {
 
-  val config = new DXPConfig
+  val config = new VdnaClusterConfig
 
   val kafkaUtils = new KafkaUtils(config)
 

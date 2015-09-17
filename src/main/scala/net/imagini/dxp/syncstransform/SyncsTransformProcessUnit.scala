@@ -9,7 +9,7 @@ import kafka.producer.{ProducerConfig, Producer, KeyedMessage}
 import net.imagini.common.message.VDNAUserImport
 import net.imagini.common.messaging.serde.VDNAUniversalDeserializer
 import net.imagini.dxp.common._
-import org.apache.donut.{ByteBufferEncoder, Fetcher, FetcherOnce, DonutAppTask}
+import org.apache.donut._
 import org.apache.hadoop.conf.Configuration
 
 /**
@@ -29,8 +29,8 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", "0")
     put("producer.type", "async")
-    put("serializer.class", classOf[ByteBufferEncoder].getName)
-    put("partitioner.class", classOf[KafkaVidPartitioner].getName)
+    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
+    put("partitioner.class", classOf[KafkaRangePartitioner].getName)
     put("batch.num.messages", "500")
     put("compression.codec", "2") //SNAPPY
   }))

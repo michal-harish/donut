@@ -3,6 +3,7 @@ package org.apache.donut
 import java.nio.ByteBuffer
 import java.util
 import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 
 
 /**
@@ -16,17 +17,24 @@ import java.util.Collections
  */
 class LocalStorage[V](val maxEntries: Int) {
 
-  val underlying = new util.LinkedHashMap[ByteBuffer, V]() {
+  val internal = Collections.synchronizedMap(new util.LinkedHashMap[ByteBuffer, V]() {
     override protected def removeEldestEntry(eldest: java.util.Map.Entry[ByteBuffer, V]): Boolean = size > maxEntries
-  }
-  val internal = Collections.synchronizedMap(underlying)
+  })
+
+//  var head: ByteBuffer = null
+//  var tail: ByteBuffer = null
+//  val internal = new ConcurrentHashMap[ByteBuffer, (ByteBuffer,V)]()
 
   def size: Int = internal.size
 
   def contains(key: ByteBuffer): Boolean = internal.containsKey(key)
 
-  def put(key: ByteBuffer, value: V): Unit = {
+  def remove(key: ByteBuffer) : V = {
     internal.remove(key)
+  }
+
+  def put(key: ByteBuffer, value: V): Unit = {
+    remove(key)
     internal.put(key, value)
   }
 
@@ -34,7 +42,7 @@ class LocalStorage[V](val maxEntries: Int) {
     if (!internal.containsKey(key)) {
       None
     } else {
-      val value = internal.remove(key)
+      val value = remove(key)
       internal.put(key, value)
       Some(value)
     }

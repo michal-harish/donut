@@ -1,7 +1,6 @@
 package net.imagini.dxp.graphbsp
 
 import java.nio.ByteBuffer
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 import kafka.message.MessageAndOffset
@@ -9,8 +8,6 @@ import kafka.producer.{KeyedMessage, Producer, ProducerConfig}
 import net.imagini.dxp.common._
 import org.apache.donut._
 import org.apache.hadoop.conf.Configuration
-
-import scala.collection.JavaConverters._
 
 /**
  * Created by mharis on 14/09/15.
@@ -74,8 +71,8 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", "0")
     put("producer.type", "async")
-    put("serializer.class", classOf[ByteBufferEncoder].getName)
-    put("partitioner.class", classOf[KafkaVidPartitioner].getName)
+    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
+    put("partitioner.class", classOf[KafkaRangePartitioner].getName)
     put("batch.num.messages", "500")
     put("compression.codec", "2") //SNAPPY
   }))
@@ -85,8 +82,8 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", "0")
     put("producer.type", "async")
-    put("serializer.class", classOf[ByteBufferEncoder].getName)
-    put("partitioner.class", classOf[KafkaVidPartitioner].getName)
+    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
+    put("partitioner.class", classOf[KafkaRangePartitioner].getName)
     put("batch.num.messages", "200")
     put("compression.codec", "0") //NONE - Compaction doesn't work for compressed topics
   }))

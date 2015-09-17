@@ -8,7 +8,7 @@ import kafka.utils.VerifiableProperties
 /**
  * Created by mharis on 16/09/15.
  */
-class ByteBufferEncoder extends Encoder[ByteBuffer] {
+class KafkaByteBufferEncoder extends Encoder[ByteBuffer] {
 
   def this(properties: VerifiableProperties) = this()
 
