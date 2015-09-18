@@ -1,5 +1,6 @@
 package org.apache.donut
 
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.Properties
 
@@ -93,17 +94,13 @@ case class KafkaUtils(val config: Configuration) {
 
 
   protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long) = {
-    //TODO implement retries
     getCoordinator(groupId) match {
       case None => throw new IllegalStateException
       case Some(coordinator) => {
         val consumer = new SimpleConsumer(coordinator.host, coordinator.port, 100000, 64 * 1024, "consumerOffsetCommitter")
         try {
           val req = new OffsetCommitRequest(groupId, Map(topicAndPartition -> OffsetAndMetadata(offset)))
-          if (consumer.commitOffsets(req).hasError) throw new Exception(s"Error committing offset for conumser group `${groupId}`")
-          else {
-            log.debug(s"Committed offset for ${topicAndPartition} in group {$groupId} to ${offset}")
-          }
+          if (consumer.commitOffsets(req).hasError) throw new IOException(s"Error committing offset for conumser group `${groupId}`")
         } finally {
           consumer.close
         }

@@ -1,10 +1,11 @@
 package org.apache.donut
 
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 import kafka.api.FetchResponse
 import kafka.common.{ErrorMapping, TopicAndPartition}
-import kafka.message.MessageAndOffset
+import kafka.message.{ByteBufferMessageSet, MessageAndOffset}
 import org.slf4j.LoggerFactory
 
 /**
@@ -12,57 +13,80 @@ import org.slf4j.LoggerFactory
  */
 abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, groupId: String) extends Runnable {
 
-  private val log = LoggerFactory.getLogger(classOf[DonutAppTask])
+  final private val log = LoggerFactory.getLogger(classOf[DonutAppTask])
 
   final protected val topicAndPartition = new TopicAndPartition(topic, partition)
+
+  final private val checkpointCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10) // TODO configurable kafka.offset.commit.interval.ms
+
   final protected var consumer = new task.kafkaUtils.PartitionConsumer(topic, partition, groupId)
 
-  protected val initialOffset: Long = consumer.getEarliestOffset
+  private[donut] def fetchConsumerOffsetFromCoordinator(): Long = consumer.getOffset match {
+    case invalidOffset: Long if (invalidOffset > consumer.getLatestOffset || invalidOffset < consumer.getEarliestOffset) => onOutOfRangeOffset()
+    case validOffset: Long => validOffset
+  }
 
-  protected def onOutOfRangeOffset: Long
+  private[donut] def onOutOfRangeOffset(): Long
 
-  protected def handleMessage(messageAndOffset: MessageAndOffset): Unit
+  /**
+   * @param messageAndOffset
+   * @return nextOffset of the message last processed
+   */
+  private[donut] def internalHandleMessageSet(messageAndOffset: ByteBufferMessageSet): Long
 
-  private[donut] def internalHandleMessage(messageAndOffset: MessageAndOffset): Unit
-  //TODO private[donut] def handleMessageSet() instead of internalHandleMessage
+  private[donut] val initialFetchOffset: Long
 
-  private[donut] var checkpointOffset = consumer.getOffset
-  private var fetchOffset = initialOffset
-  private var lastOffsetCommit = -1L
-  private val offsetCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10) // TODO configurable kafka.offset.commit.interval.ms
+  private var lastCheckpointCommitValue = fetchConsumerOffsetFromCoordinator()
+  private var lastCheckpointCommitTime = -1L
+  private[donut] def getCheckpointOffset = lastCheckpointCommitValue
+  private var nextFetchOffset: Long = -1L
 
   override def run(): Unit = {
     try {
-      log.debug(s"Start fetching ${topicAndPartition}")
+      nextFetchOffset = initialFetchOffset
       while (!Thread.interrupted) {
         //TODO this fetchSize might need to be controlled by config as it depends on compression and batch size of the producer
-        val fetchResponse = doFetchRequest(fetchSize = 10 * 1024 * 1024)
-        var numRead: Long = 0
+        val fetchResponse = doFetchRequest(fetchSize = 2 * 1024 * 1024)
         val messageSet = fetchResponse.messageSet(topic, partition)
-        for (messageAndOffset <- messageSet) {
-          fetchOffset = messageAndOffset.nextOffset
-          internalHandleMessage(messageAndOffset)
-          numRead += 1
-        }
-        if (fetchOffset >= checkpointOffset) {
-          val nanoTime = System.nanoTime
-          if (lastOffsetCommit + offsetCommitIntervalNanos < System.nanoTime) {
-            consumer.commitOffset(fetchOffset)
-            lastOffsetCommit = nanoTime
-          }
-        }
-
-        if (numRead == 0) {
+        if (messageSet.isEmpty) {
           try {
             Thread.sleep(1000) //Note: backoff sleep time
           } catch {
             case ie: InterruptedException => return
           }
+        } else {
+          /**
+           * This is where at-least-once guarantee is implied. E.g. if the implementing processor handled only a
+           * portion of the message set above and then failed with exception, the checkpoint offset below will not be
+           * reached and on the task re-start that portion will be will re-processed again.
+           */
+          internalHandleMessageSet(messageSet) match {
+            case -1L => throw new IllegalStateException
+            case nextFetchOffsetHandled => {
+              nextFetchOffset = nextFetchOffsetHandled
+              if (nextFetchOffsetHandled > lastCheckpointCommitValue) {
+                val nanoTime = System.nanoTime
+                if (lastCheckpointCommitTime + checkpointCommitIntervalNanos < System.nanoTime) {
+                  try {
+                    log.debug(s"Committing offset for ${topicAndPartition} in group {$groupId} to ${nextFetchOffset}, num message = ${nextFetchOffsetHandled - lastCheckpointCommitValue}")
+                    consumer.commitOffset(nextFetchOffsetHandled)
+                    lastCheckpointCommitTime = nanoTime
+                    lastCheckpointCommitValue = nextFetchOffsetHandled
+                  } catch {
+                    case e: IOException => {
+                      //TODO implement retries
+                      throw e
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     } catch {
       //TODO propagate execption to the container so that it can exit with error code and inform AM
-      case e: Throwable => e.printStackTrace()
+      case e: Throwable => log.error("Terminating fetcher", e)
     } finally {
       if (consumer != null) consumer.close
     }
@@ -74,18 +98,20 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
       if (consumer == null) {
         consumer = new task.kafkaUtils.PartitionConsumer(topic, partition, groupId)
       }
-      val fetchResponse = consumer.fetch(fetchOffset, fetchSize)
+
+      val fetchResponse = consumer.fetch(nextFetchOffset, fetchSize)
 
       if (fetchResponse.hasError) {
         numErrors += 1
         fetchResponse.errorCode(topic, partition) match {
           case code if (numErrors > 5) => throw new Exception("Error fetching data from leader,  Reason: " + code)
           case ErrorMapping.OffsetOutOfRangeCode => {
-            fetchOffset = onOutOfRangeOffset
-            println(s"readOffset ${topic}/${partition} out of range, resetting to offset ${fetchOffset}")
+            nextFetchOffset = onOutOfRangeOffset()
+            log.warn(s"readOffset ${topic}/${partition} out of range, resetting to offset ${nextFetchOffset}")
           }
           case code => {
             try {
+              log.warn(s"Closing consumer due to kafka fetch error code ${code}")
               consumer.close
             } finally {
               consumer = null

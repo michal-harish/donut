@@ -1,6 +1,6 @@
 package org.apache.donut
 
-import kafka.message.MessageAndOffset
+import kafka.message.{ByteBufferMessageSet, MessageAndOffset}
 import org.slf4j.LoggerFactory
 
 /**
@@ -11,32 +11,36 @@ abstract class FetcherBootstrap(task: DonutAppTask, topic: String, partition: In
 
   private val log = LoggerFactory.getLogger(classOf[FetcherBootstrap])
 
-  override protected val initialOffset: Long = consumer.getEarliestOffset
+  override private[donut] def onOutOfRangeOffset = consumer.getEarliestOffset
 
-  override protected def onOutOfRangeOffset = consumer.getEarliestOffset
+  override private[donut] val initialFetchOffset: Long = consumer.getEarliestOffset
 
   private val bootSequenceId = s"$topic:$partition"
 
-  private var booted = initialOffset >= checkpointOffset
+  private var booted = initialFetchOffset >= getCheckpointOffset
 
   task.bootSequence.put(bootSequenceId, booted)
 
-  log.debug(s"[$bootSequenceId]: initialOffset = $initialOffset, checkpoint offset = $checkpointOffset")
+  log.debug(s"[$bootSequenceId]: initialOffset = $initialFetchOffset, checkpoint offset = $getCheckpointOffset")
 
-  final override private[donut] def internalHandleMessage(messageAndOffset: MessageAndOffset): Unit = {
-    handleMessage(messageAndOffset)
-
-    if (messageAndOffset.nextOffset >= checkpointOffset) {
-      checkpointOffset = messageAndOffset.nextOffset
-      if (!booted) {
-        booted = true
-        task.bootSequence.synchronized {
-          log.debug(s"[$bootSequenceId]: caught up with last state checkpoint")
-          task.bootSequence.put(bootSequenceId, true)
-          task.checkBootSequenceCompleted
+  final override private[donut]  def internalHandleMessageSet(messageSet: ByteBufferMessageSet): Long = {
+    var nextFetchOffset:Long = -1L
+    for(messageAndOffset <- messageSet) {
+      handleMessage(messageAndOffset)
+      nextFetchOffset = messageAndOffset.nextOffset
+      if (nextFetchOffset >= getCheckpointOffset) {
+        if (!booted) {
+          booted = true
+          task.bootSequence.synchronized {
+            log.debug(s"[$bootSequenceId]: caught up with last state checkpoint")
+            task.bootSequence.put(bootSequenceId, true)
+            task.checkBootSequenceCompleted
+          }
         }
       }
     }
+    nextFetchOffset
   }
 
+  protected def handleMessage(messageAndOffset: MessageAndOffset): Unit
 }

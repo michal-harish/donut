@@ -9,14 +9,14 @@ import org.apache.hadoop.conf.Configuration
  */
 class GraphStreamApplication(config: Configuration) extends DonutApp[GraphStreamProcessUnit](config) {
   def this() = this(new VdnaClusterConfig {
-    set("kafka.group.id", "GraphStreamingBSP")
-    set("kafka.topics", "graphstream,graphstate")
-    setBoolean("kafka.cogroup", true)
-    set("yarn.name", "GraphStreaming")
+    set("yarn.name", "GraphStreamingBSP")
     set("yarn.queue", "developers")
     setBoolean("yarn.keepContainers", true)
     setInt("yarn.master.priority", 0)
     setLong("yarn.master.timeout.s", 3600L)
+    set("kafka.group.id", "GraphStreamingBSP")
+    set("kafka.topics", "graphstream,graphstate")
+    setBoolean("kafka.cogroup", true)
   })
 
 }

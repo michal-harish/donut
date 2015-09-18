@@ -39,12 +39,11 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
     topic match {
       case "datasync" => new FetcherOnce(this, topic, partition, groupId) {
         override def handleMessage(messageAndOffset: MessageAndOffset): Unit = {
+          counterReceived.incrementAndGet
           val payload = messageAndOffset.message.payload
           //FIXME now that we have ByteBuffers vdna decoder should support offset to deserialize from
           val payloadArray: Array[Byte] = util.Arrays.copyOfRange(payload.array, payload.arrayOffset, payload.arrayOffset + payload.remaining)
           val vdnaMsg = vdnaMessageDecoder.decodeBytes(payloadArray)
-          counterReceived.incrementAndGet
-
           if (vdnaMsg.isInstanceOf[VDNAUserImport]) {
             val importMsg = vdnaMsg.asInstanceOf[VDNAUserImport]
             if (importMsg.getUserCookied &&

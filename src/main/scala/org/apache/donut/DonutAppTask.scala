@@ -58,7 +58,6 @@ abstract class DonutAppTask(config: Configuration, val logicalPartition: Int, to
     }
   }
 
-
   final override def run: Unit = {
     log.info(s"Starting Donut Task for logical partition ${logicalPartition}/${totalLogicalPartitions}")
     val fetchers = partitionsToConsume.flatMap {
@@ -68,24 +67,26 @@ abstract class DonutAppTask(config: Configuration, val logicalPartition: Int, to
     }
     bootSequenceCompleted = bootSequence.size == 0 || checkBootSequenceCompleted
     if (bootSequenceCompleted) {
-      log.info("No boot sequence required, launching.")
+      log.info(s"No boot sequence required, launching ${fetchers.size} fetchers.")
     }
     else {
       log.info("Initializing boot sequence: " + bootSequence.asScala.filter(!_._2).map(_._1).mkString(","))
     }
     val executor = Executors.newFixedThreadPool(fetchers.size)
-    log.info(s"NUM FETCHERS = ${fetchers.size}")
     fetchers.foreach(fetcher => executor.submit(fetcher))
-    //TODO handle fetcher failures and close (it's actually happening but don't know why)
+    //TODO handle fetcher failures and propagate to AppTask
     executor.shutdown
     try {
       while (!Thread.interrupted()) {
-        if (executor.awaitTermination(5, TimeUnit.SECONDS)) {
+        if (executor.awaitTermination(30, TimeUnit.SECONDS)) {
           return
         } else {
           awaitingTermination
         }
       }
+      log.warn("Donut Task interrupted!")
+    } catch {
+      case e: Throwable => log.warn("Donut Task terminated", e)
     } finally {
       onShutdown
     }

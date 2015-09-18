@@ -89,7 +89,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
     println(
       s"=> graphstream(${bspIn.get} - evicted ${bspEvicted.get} + missed ${bspMiss.get} + hit ${bspUpdated.get}) " +
         s"=> graphstate(${stateIn.get}) " +
-        s"=> state.size = " + localState.size
+        s"=> state.size = " + localState.size + ", state.memory = " + localState.minSizeInByte / 1024 / 1024 + " Mb"
     )
   }
 

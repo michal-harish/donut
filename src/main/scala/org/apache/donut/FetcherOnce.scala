@@ -1,6 +1,6 @@
 package org.apache.donut
 
-import kafka.message.MessageAndOffset
+import kafka.message.{ByteBufferMessageSet, MessageAndOffset}
 import org.slf4j.LoggerFactory
 
 /**
@@ -10,25 +10,30 @@ abstract class FetcherOnce(task: DonutAppTask, topic: String, partition: Int, gr
   extends Fetcher(task, topic, partition, groupId) {
 
   private val log = LoggerFactory.getLogger(classOf[FetcherOnce])
-  /**
-   * processOffset - persistent offset mark for remembering up to which point was the stream processed
-   */
-  override val initialOffset: Long = checkpointOffset
 
-  override protected def onOutOfRangeOffset = consumer.getEarliestOffset //TODO configurable out of range beahviour
+  override private[donut] val initialFetchOffset: Long = fetchConsumerOffsetFromCoordinator()
 
-  log.debug(s"${topicAndPartition}: initialOffset = ${initialOffset} ")
+  override private[donut] def onOutOfRangeOffset = consumer.getEarliestOffset
 
-  final override private[donut]  def internalHandleMessage(messageAndOffset: MessageAndOffset): Unit = {
-    if (!task.checkBootSequenceCompleted) task.bootSequence.synchronized {
-        log.debug(s"Fetcher ${topic}/${partition} waiting for state boot sequence to complete..")
+  log.debug(s"${topicAndPartition}: initialOffset = ${initialFetchOffset} ")
+
+  final override private[donut] def internalHandleMessageSet(messageSet: ByteBufferMessageSet): Long = {
+    var nextFetchOffset:Long = -1L
+    for(messageAndOffset <- messageSet) {
+      if (!task.checkBootSequenceCompleted) task.bootSequence.synchronized {
+        log.info(s"Fetcher ${topic}/${partition} waiting for state boot sequence to complete..")
         task.bootSequence.wait
-        log.debug(s"Resuming Fetcher ${topic}/${partition} after boot sequence")
+        log.info(s"Resuming Fetcher ${topic}/${partition} after boot sequence")
+      }
+      if (messageAndOffset.offset >= getCheckpointOffset) {
+        handleMessage(messageAndOffset)
+      }
+      if ( messageAndOffset.nextOffset < nextFetchOffset) throw new IllegalStateException()
+      nextFetchOffset = messageAndOffset.nextOffset
     }
-    if (messageAndOffset.offset >= checkpointOffset) {
-      handleMessage(messageAndOffset)
-      checkpointOffset = messageAndOffset.nextOffset
-    }
+    nextFetchOffset
   }
+
+  protected def handleMessage(messageAndOffset: MessageAndOffset): Unit
 
 }

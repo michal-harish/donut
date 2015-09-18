@@ -23,16 +23,21 @@ class LocalStorage(val maxEntries: Int) {
   val internal = Collections.synchronizedMap(underlying)
 
   def minSizeInByte: Long = {
-    val it = internal.entrySet.iterator
-    var size = 0L
-    while (it.hasNext) {
-      val entry = it.next
-      size += 32 //Map.Entry overhead
-      size += entry.getKey.capacity + 16
-      size += entry.getValue.length + 8
+    internal.synchronized {
+      val it = internal.entrySet.iterator
+      var size = 0L
+      while (it.hasNext) {
+        val entry = it.next
+        size += 32 //Map.Entry overhead
+        size += entry.getKey.capacity + 16
+        size += (entry.getValue match {
+          case null => 0L
+          case v: Array[Byte] => v.length + 8
+        })
+      }
+      //TODO underlying hashmap capacity planning overhead
+      size
     }
-   //TODO underlying hashmap capacity planning overhead
-    size
   }
 
   //  val internal = new ConcurrentHashMap[ByteBuffer, (ByteBuffer,Array[Byte])]()

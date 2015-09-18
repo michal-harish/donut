@@ -1,13 +1,14 @@
 # donut
 recursive stream processor on top of kafka
 
+> at-least-once guarantee with fully idempotent design guidelines 
 > recursvie streaming bsp usecase > custom dual offset > custom rebalance logic
 
-TODO
+WORK
 --------------------
-- librebind + jprofiler 
-- before submitting to yarn, check if the appName is already running on cluster 
-- LZ4ConcurrentHashMap - linked lz4 blocks with parallel expiring structure of uncompressed blocks
+- TODO librebind + jprofiler 
+- TODO before submitting to yarn, check if the appName is already running on cluster 
+- TODO LZ4ConcurrentHashMap - linked lz4 blocks with parallel expiring structure of uncompressed blocks
 
 
 KAFKA ADMIN

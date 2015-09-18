@@ -19,7 +19,7 @@ object SyncTransformLocalLauncher extends App {
 }
 
 object SyncTransformYarnLauncher extends App {
-  new SyncsTransformApplication().runOnYarn(taskMemoryMb = 4 * 1024, awaitCompletion = true )
+  new SyncsTransformApplication().runOnYarn(taskMemoryMb = 16 * 1024, awaitCompletion = true )
   //FIXME json deserializers kill memory - even 12 x 3GBs (!) will kill container but this is a simple transformation 256Mb should be enough
 }
 
@@ -36,7 +36,7 @@ object GraphStreamDebugger extends App {
       case null => null
       case x => BSPMessage.decodePayload(x)
     }
-    if (payload._2.size > 1) {
+    if (payload._2.size > 0) {
       println(s"${vid} -> ${payload}")
     }
   })
@@ -51,7 +51,9 @@ object GraphStateDebugger extends App {
       case null => null
       case x => BSPMessage.decodePayload(x)
     }
-    println(s"${vid} -> ${payload}")
+    if (payload._2.size > 3) {
+      println(s"${vid} -> ${payload}")
+    }
   })
 }
 
