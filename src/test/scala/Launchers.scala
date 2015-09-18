@@ -58,32 +58,25 @@ object GraphStateDebugger extends App {
     }
     if (payload != null && payload._2.size > 1) {
       print(s"\n${vid} -> ${payload}")
-    } else {
-      print(".")
     }
   })
 }
 
-object OffsetManager extends App {
+object OffsetReport extends App {
 
   val config = new VdnaClusterConfig
 
   val kafkaUtils = new KafkaUtils(config)
 
   kafkaUtils.getPartitionMap(Seq("datasync")).foreach { case (topic, numPartitions) => {
-    for (p <- (0 to numPartitions - 1)) {
-      val consumer = new kafkaUtils.PartitionConsumer(topic, p, "SyncsToGraphTransformer")
+    List("GraphStreamingBSP", "").foreach(consumerGroupId => {
+      for (p <- (0 to numPartitions - 1)) {
+        val consumer = new kafkaUtils.PartitionConsumer(topic, p, consumerGroupId)
 
-      val (earliest, consumed, latest) = (consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
+        val (earliest, consumed, latest) = (consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
 
-      consumer.commitOffset(latest)
-
-      val reset = consumer.getOffset
-
-      consumer.close
-
-      println(s"$topic/$p OFFSET RANGE = ${earliest}:${latest} => DonutTestConsumer offset ${consumed} => ${reset}")
-    }
-  }}
-
+        println(s"$topic/$p OFFSET RANGE = ${earliest}:${latest} => ${consumerGroupId} group offset ${consumed} }")
+      }
+    })
+  }
 }
