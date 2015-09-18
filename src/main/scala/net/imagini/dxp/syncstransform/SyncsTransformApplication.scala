@@ -14,7 +14,7 @@ class SyncsTransformApplication(config: Configuration) extends DonutApp[SyncsTra
     setBoolean("kafka.cogroup", false)
     set("yarn.name", "SyncsToGraphTransformer")
     set("yarn.queue", "developers")
-    setBoolean("yarn.keepContainerst", true)
+    setBoolean("yarn.keepContainers", true)
     setInt("yarn.master.priority", 0)
     setLong("yarn.master.timeout.s", 3600L)
   })

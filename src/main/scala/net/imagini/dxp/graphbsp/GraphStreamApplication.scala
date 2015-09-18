@@ -14,7 +14,7 @@ class GraphStreamApplication(config: Configuration) extends DonutApp[GraphStream
     setBoolean("kafka.cogroup", true)
     set("yarn.name", "GraphStreaming")
     set("yarn.queue", "developers")
-    setBoolean("yarn.keepContainerst", true)
+    setBoolean("yarn.keepContainers", true)
     setInt("yarn.master.priority", 0)
     setLong("yarn.master.timeout.s", 3600L)
   })
