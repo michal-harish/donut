@@ -78,5 +78,5 @@ object OffsetReport extends App {
         println(s"$topic/$p OFFSET RANGE = ${earliest}:${latest} => ${consumerGroupId} group offset ${consumed} }")
       }
     })
-  }
+  }}
 }
