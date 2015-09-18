@@ -37,7 +37,7 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
 
   override protected def createFetcher(topic: String, partition: Int, groupId: String): Fetcher = {
     topic match {
-      case "datasync" => new FetcherOnce(this, topic, partition, groupId) {
+      case "datasync" => new FetcherDelta(this, topic, partition, groupId) {
         override def handleMessage(messageAndOffset: MessageAndOffset): Unit = {
           counterReceived.incrementAndGet
           val payload = messageAndOffset.message.payload

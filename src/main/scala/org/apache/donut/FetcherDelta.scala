@@ -6,10 +6,10 @@ import org.slf4j.LoggerFactory
 /**
  * Created by mharis on 16/09/15.
  */
-abstract class FetcherOnce(task: DonutAppTask, topic: String, partition: Int, groupId: String)
+abstract class FetcherDelta(task: DonutAppTask, topic: String, partition: Int, groupId: String)
   extends Fetcher(task, topic, partition, groupId) {
 
-  private val log = LoggerFactory.getLogger(classOf[FetcherOnce])
+  private val log = LoggerFactory.getLogger(classOf[FetcherDelta])
 
   override private[donut] val initialFetchOffset: Long = fetchConsumerOffsetFromCoordinator()
 

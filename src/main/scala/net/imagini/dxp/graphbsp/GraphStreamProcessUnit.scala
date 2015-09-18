@@ -37,7 +37,7 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
         }
       }
 
-      case "graphstream" => new FetcherOnce(this, topic, partition, groupId) {
+      case "graphstream" => new FetcherDelta(this, topic, partition, groupId) {
         val MAX_ITER = 3
         private val MAX_EDGES = 9
 
