@@ -14,6 +14,11 @@ object GraphStreamYarnLauncher extends App {
   new GraphStreamApplication().runOnYarn(20 * 1024, awaitCompletion = true)
 }
 
+
+object GraphStreamYarnSubmit extends App {
+  new GraphStreamApplication().runOnYarn(20 * 1024, awaitCompletion = false)
+}
+
 object SyncTransformLocalLauncher extends App {
   new SyncsTransformApplication().runLocally(multiThreadMode = false)
 }
@@ -36,7 +41,7 @@ object GraphStreamDebugger extends App {
       case null => null
       case x => BSPMessage.decodePayload(x)
     }
-    if (payload._2.size > 0) {
+    if (payload != null && payload._2.size > 0) {
       println(s"${vid} -> ${payload}")
     }
   })
@@ -51,8 +56,10 @@ object GraphStateDebugger extends App {
       case null => null
       case x => BSPMessage.decodePayload(x)
     }
-    if (payload._2.size > 3) {
-      println(s"${vid} -> ${payload}")
+    if (payload != null && payload._2.size > 1) {
+      print(s"\n${vid} -> ${payload}")
+    } else {
+      print(".")
     }
   })
 }

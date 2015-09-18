@@ -6,6 +6,15 @@ import org.apache.hadoop.conf.Configuration
 
 /**
  * Created by mharis on 14/09/15.
+ *
+ * This is a stateful recursive streaming processor. Each unit (GraphStreamProcessUnit) processes cogrouped partitions
+ * from 2 topics, one for Delta and one for State:
+ *
+ * A. the Delta is recursively processed from and to topic 'graphstream'
+ * B. the State is kept in a compacted topic 'graphstate'
+ *
+ * The input into this application comes from SyncsTransformApplication which provides fresh edges into the graph.
+ * The input is amplified by recursive consulation of State and production of secondary delta messages.
  */
 class GraphStreamApplication(config: Configuration) extends DonutApp[GraphStreamProcessUnit](config) {
   def this() = this(new VdnaClusterConfig {

@@ -6,6 +6,7 @@ recursive stream processor on top of kafka
 
 WORK
 --------------------
+- TODO get rid of vdna specific configuration from the code - yarn1 could take --yarnConfigPath and load the files from there  
 - TODO bootstrap fetcher could be stopped after it is caught up provided the delta fetcher updates the local state
 - TODO librebind + jprofiler 
 - TODO before submitting to yarn, check if the appName is already running on cluster 
