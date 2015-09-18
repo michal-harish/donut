@@ -32,7 +32,7 @@ abstract class FetcherRecursive (task: DonutAppTask, topic: String, partition: I
     try {
       while (!Thread.interrupted) {
         //TODO this fetchSize of 100000 might need to be controlled by config if large batches are written to Kafka
-        val fetchResponse = doFetchRequest(readOffset, fetchSize = 10000)
+        val fetchResponse = doFetchRequest(fetchSize = 10000)
         var numRead: Long = 0
         val messageSet = fetchResponse.messageSet(topic, partition)
         for (messageAndOffset <- messageSet) {

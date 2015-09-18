@@ -5,44 +5,51 @@ import java.util.concurrent.TimeUnit
 import kafka.api.FetchResponse
 import kafka.common.{ErrorMapping, TopicAndPartition}
 import kafka.message.MessageAndOffset
+import org.slf4j.LoggerFactory
 
 /**
  * Created by mharis on 16/09/15.
  */
 abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, groupId: String) extends Runnable {
 
+  private val log = LoggerFactory.getLogger(classOf[DonutAppTask])
 
   final protected val topicAndPartition = new TopicAndPartition(topic, partition)
   final protected var consumer = new task.kafkaUtils.PartitionConsumer(topic, partition, groupId)
-  private var lastOffsetCommit = -1L
-  private val offsetCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10) // TODO configurable kafka.offset.auto...
 
   protected val initialOffset: Long = consumer.getEarliestOffset
+
+  protected def onOutOfRangeOffset: Long
 
   protected def handleMessage(messageAndOffset: MessageAndOffset): Unit
 
   private[donut] def internalHandleMessage(messageAndOffset: MessageAndOffset): Unit
+  //TODO private[donut] def handleMessageSet() instead of internalHandleMessage
+
+  private[donut] var checkpointOffset = consumer.getOffset
+  private var fetchOffset = initialOffset
+  private var lastOffsetCommit = -1L
+  private val offsetCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10) // TODO configurable kafka.offset.commit.interval.ms
 
   override def run(): Unit = {
     try {
-      var processOffset = initialOffset
+      log.debug(s"Start fetching ${topicAndPartition}")
       while (!Thread.interrupted) {
-        //TODO this fetchSize of 512Kb might need to be controlled by config if large batches are written to Kafka
-        val fetchResponse = doFetchRequest(processOffset, fetchSize = 512 * 1024)
+        //TODO this fetchSize might need to be controlled by config as it depends on compression and batch size of the producer
+        val fetchResponse = doFetchRequest(fetchSize = 10 * 1024 * 1024)
         var numRead: Long = 0
         val messageSet = fetchResponse.messageSet(topic, partition)
         for (messageAndOffset <- messageSet) {
-          val currentOffset = messageAndOffset.offset
-          if (currentOffset >= processOffset) {
-            internalHandleMessage(messageAndOffset)
-            processOffset = messageAndOffset.nextOffset
-          }
+          fetchOffset = messageAndOffset.nextOffset
+          internalHandleMessage(messageAndOffset)
           numRead += 1
         }
-        val nanoTime = System.nanoTime
-        if (lastOffsetCommit + offsetCommitIntervalNanos < System.nanoTime) {
-          consumer.commitOffset(processOffset)
-          lastOffsetCommit = nanoTime
+        if (fetchOffset >= checkpointOffset) {
+          val nanoTime = System.nanoTime
+          if (lastOffsetCommit + offsetCommitIntervalNanos < System.nanoTime) {
+            consumer.commitOffset(fetchOffset)
+            lastOffsetCommit = nanoTime
+          }
         }
 
         if (numRead == 0) {
@@ -61,22 +68,21 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
     }
   }
 
-  final protected def doFetchRequest(fetchOffset: Long, fetchSize: Int): FetchResponse = {
-    var tryFetchOffset = fetchOffset
+  final protected def doFetchRequest(fetchSize: Int): FetchResponse = {
     var numErrors = 0
     do {
       if (consumer == null) {
         consumer = new task.kafkaUtils.PartitionConsumer(topic, partition, groupId)
       }
-      val fetchResponse = consumer.fetch(tryFetchOffset, fetchSize)
+      val fetchResponse = consumer.fetch(fetchOffset, fetchSize)
 
       if (fetchResponse.hasError) {
         numErrors += 1
         fetchResponse.errorCode(topic, partition) match {
           case code if (numErrors > 5) => throw new Exception("Error fetching data from leader,  Reason: " + code)
           case ErrorMapping.OffsetOutOfRangeCode => {
-            tryFetchOffset = consumer.getLatestOffset
-            println(s"readOffset ${topic}/${partition} out of range, resetting to latest offset ${tryFetchOffset}")
+            fetchOffset = onOutOfRangeOffset
+            println(s"readOffset ${topic}/${partition} out of range, resetting to offset ${fetchOffset}")
           }
           case code => {
             try {

@@ -1,9 +1,14 @@
 package org.apache.donut
 
+import java.nio.ByteBuffer
+import java.util.Properties
+
 import kafka.api._
 import kafka.cluster.Broker
 import kafka.common.{OffsetAndMetadata, TopicAndPartition}
-import kafka.consumer.SimpleConsumer
+import kafka.consumer.{ConsumerConfig, Consumer, SimpleConsumer}
+import kafka.message.MessageAndMetadata
+import kafka.producer.{Partitioner, ProducerConfig, Producer}
 import org.apache.hadoop.conf.Configuration
 import org.slf4j.LoggerFactory
 
@@ -11,8 +16,6 @@ import org.slf4j.LoggerFactory
  * Created by mharis on 14/09/15.
  */
 case class KafkaUtils(val config: Configuration) {
-
-
   private val log = LoggerFactory.getLogger(classOf[DonutApp[_]])
 
   val kafkaBrokers = config.get("kafka.brokers")
@@ -155,6 +158,39 @@ case class KafkaUtils(val config: Configuration) {
 
     def commitOffset(offset: Long) : Unit = commitGroupOffset(groupId, topicAndPartition, offset)
 
+  }
+
+  def createSnappyProducer[P <: Partitioner](numAcks: Int, batchSize: Int)
+        (implicit p: Manifest[P])= new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+    put("metadata.broker.list", config.get("kafka.brokers"))
+    put("request.required.acks", numAcks.toString)
+    put("producer.type", "async")
+    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
+    put("partitioner.class", p.runtimeClass.getName)
+    put("batch.num.messages", batchSize.toString)
+    put("compression.codec", "2") //SNAPPY
+  }))
+
+  def createCompactProducer[P <: Partitioner](numAcks: Int, batchSize: Int)
+        (implicit p: Manifest[P])= new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+    put("metadata.broker.list", config.get("kafka.brokers"))
+    put("request.required.acks", numAcks.toString)
+    put("producer.type", "async")
+    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
+    put("partitioner.class", p.runtimeClass.getName)
+    put("batch.num.messages", batchSize.toString)
+    put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
+  }))
+
+  def createDebugConsumer(topic: String, processor: (MessageAndMetadata[Array[Byte], Array[Byte]]) => Unit) = {
+    val consumer = Consumer.create(new ConsumerConfig(new Properties() {
+      put("group.id", "DonutDebugger")
+      put("zookeeper.connect", config.get("zookeeper.connect"))
+    }))
+    val stream = consumer.createMessageStreams(Map(topic -> 1))(topic).head
+    for(msg <- stream) {
+      processor(msg)
+    }
   }
 
 }

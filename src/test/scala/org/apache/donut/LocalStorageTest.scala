@@ -10,7 +10,7 @@ import org.scalatest.{FlatSpec, Matchers}
 class LocalStorageTest extends FlatSpec with Matchers {
   implicit def stringAsByteBuffer(s: String) = ByteBuffer.wrap(s.getBytes())
 
-  val storage = new LocalStorage[String](3)
+  val storage = new LocalStorage(3)
   storage.put("9", "A")
   storage.put("8", "B")
   storage.put("7", "C") // after 3 puts the order of eviction is 9,8,7

@@ -21,7 +21,11 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
   val bspUpdated = new AtomicLong(0)
   val stateIn = new AtomicLong(0)
 
-  private val localState = new LocalStorage[ByteBuffer](5000000)
+  private val localState = new LocalStorage(5000000)
+
+  private val graphstreamProducer = kafkaUtils.createSnappyProducer[KafkaRangePartitioner](numAcks = 0, batchSize = 1000)
+
+  private val stateProducer = kafkaUtils.createCompactProducer[KafkaRangePartitioner](numAcks = 0, batchSize = 200)
 
   override protected def createFetcher(topic: String, partition: Int, groupId: String): Fetcher = {
     topic match {
@@ -34,8 +38,8 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
       }
 
       case "graphstream" => new FetcherOnce(this, topic, partition, groupId) {
-        val MAX_ITER = 5
-        private val MAX_EDGES = 69
+        val MAX_ITER = 3
+        private val MAX_EDGES = 9
 
         override def handleMessage(envelope: MessageAndOffset): Unit = {
           bspIn.incrementAndGet
@@ -43,21 +47,35 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
           localState.get(key) match {
             case None => {
               bspMiss.incrementAndGet
-              setState(key, envelope.message.payload)
+              localState.put(key, envelope.message.payload)
+              stateProducer.send(new KeyedMessage("graphstate", key, envelope.message.payload))
             }
             case Some(null) => bspEvicted.incrementAndGet
-            case Some(state) => {
+            case Some(previousState) => {
               bspUpdated.incrementAndGet
-              val (iteration, inputEdges) = BSPMessage.decodePayload(envelope.message.payload)
-              val existingEdges = BSPMessage.decodePayload(state)._2
+              val payload = envelope.message.payload
+              val (iteration, inputEdges) = BSPMessage.decodePayload(payload.array, payload.arrayOffset)
+              val existingEdges = BSPMessage.decodePayload(previousState)._2
               val additionalEdges = inputEdges.filter(n => !existingEdges.contains(n._1))
               val newEdges = existingEdges ++ additionalEdges
-              val newState = if (newEdges.size > MAX_EDGES) null else BSPMessage.encodePayload((iteration, newEdges))
-              setState(key, newState)
-              graphstreamProducer.send(
-                new KeyedMessage("graphstate", key, envelope.message.payload))
-              if (iteration < MAX_ITER) {
-
+              if (newEdges.size > MAX_EDGES) {
+                localState.put(key, null.asInstanceOf[Array[Byte]])
+                stateProducer.send(new KeyedMessage("graphstate", key, null))
+              } else {
+                val newState = BSPMessage.encodePayload((iteration, newEdges))
+                localState.put(key, newState)
+                if (iteration < MAX_ITER) {
+                  val newPayload = ByteBuffer.wrap(BSPMessage.encodePayload(((iteration + 1).toByte, newEdges)))
+                  existingEdges.foreach { case (v,props) => {
+                    graphstreamProducer.send(
+                      new KeyedMessage("graphstream", ByteBuffer.wrap(BSPMessage.encodeKey(v)), newPayload))
+                  }}
+                  val previousPayload = ByteBuffer.wrap(BSPMessage.encodePayload(((iteration + 1).toByte, existingEdges)))
+                  newEdges.foreach { case (v,props) => {
+                    graphstreamProducer.send(
+                      new KeyedMessage("graphstream", ByteBuffer.wrap(BSPMessage.encodeKey(v)), previousPayload))
+                  }}
+                }
               }
             }
           }
@@ -65,32 +83,6 @@ class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, total
       }
 
     }
-  }
-
-  private val graphstreamProducer = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
-    put("metadata.broker.list", config.get("kafka.brokers"))
-    put("request.required.acks", "0")
-    put("producer.type", "async")
-    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
-    put("partitioner.class", classOf[KafkaRangePartitioner].getName)
-    put("batch.num.messages", "500")
-    put("compression.codec", "2") //SNAPPY
-  }))
-
-  //TODO alter topic `graphstate` to use log compaction
-  private val stateProducer = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
-    put("metadata.broker.list", config.get("kafka.brokers"))
-    put("request.required.acks", "0")
-    put("producer.type", "async")
-    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
-    put("partitioner.class", classOf[KafkaRangePartitioner].getName)
-    put("batch.num.messages", "200")
-    put("compression.codec", "0") //NONE - Compaction doesn't work for compressed topics
-  }))
-
-  private def setState(key: ByteBuffer, payload: ByteBuffer) {
-    localState.put(key, payload)
-    graphstreamProducer.send(new KeyedMessage("graphstate", key, payload))
   }
 
   override def awaitingTermination {

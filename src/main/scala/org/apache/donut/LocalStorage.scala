@@ -4,6 +4,7 @@ import java.nio.ByteBuffer
 import java.util
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 
 /**
@@ -15,37 +16,69 @@ import java.util.concurrent.ConcurrentHashMap
  * i.e. linked structure of lz4 blocks based on access time each containing pure concurrent hashmap of values
  * with the top n blocks kept uncompressed
  */
-class LocalStorage[V](val maxEntries: Int) {
+class LocalStorage(val maxEntries: Int) {
+  val underlying = new util.LinkedHashMap[ByteBuffer, Array[Byte]]() {
+    override protected def removeEldestEntry(eldest: java.util.Map.Entry[ByteBuffer, Array[Byte]]): Boolean = size > maxEntries
+  }
+  val internal = Collections.synchronizedMap(underlying)
 
-  val internal = Collections.synchronizedMap(new util.LinkedHashMap[ByteBuffer, V]() {
-    override protected def removeEldestEntry(eldest: java.util.Map.Entry[ByteBuffer, V]): Boolean = size > maxEntries
-  })
+  def minSizeInByte: Long = {
+    val it = internal.entrySet.iterator
+    var size = 0L
+    while (it.hasNext) {
+      val entry = it.next
+      size += 32 //Map.Entry overhead
+      size += entry.getKey.capacity + 16
+      size += entry.getValue.length + 8
+    }
+   //TODO underlying hashmap capacity planning overhead
+    size
+  }
 
-//  var head: ByteBuffer = null
-//  var tail: ByteBuffer = null
-//  val internal = new ConcurrentHashMap[ByteBuffer, (ByteBuffer,V)]()
+  //  val internal = new ConcurrentHashMap[ByteBuffer, (ByteBuffer,Array[Byte])]()
 
   def size: Int = internal.size
 
-  def contains(key: ByteBuffer): Boolean = internal.containsKey(key)
-
-  def remove(key: ByteBuffer) : V = {
-    internal.remove(key)
+  def contains(key: ByteBuffer): Boolean = {
+    internal.containsKey(key)
   }
 
-  def put(key: ByteBuffer, value: V): Unit = {
-    remove(key)
-    internal.put(key, value)
+  def put(key: ByteBuffer, value: ByteBuffer): Unit = {
+    val bKey = key.slice
+    internal.remove(bKey)
+    if (value == null || value.remaining == 0) {
+      internal.put(bKey, null)
+    } else {
+      val bytes = util.Arrays.copyOfRange(value.array, value.arrayOffset, value.arrayOffset + value.remaining)
+      internal.put(bKey, bytes)
+    }
   }
 
-  def get(key: ByteBuffer): Option[V] = {
+  def put(key: ByteBuffer, value: Array[Byte]): Unit = {
+    val bKey = key.slice
+    internal.remove(bKey)
+    internal.put(bKey, value)
+  }
+
+  def put(key: Array[Byte], value: Array[Byte]): Unit = {
+    val bKey = ByteBuffer.wrap(key)
+    internal.remove(bKey)
+    internal.put(bKey, value)
+  }
+
+  def get(key: ByteBuffer): Option[Array[Byte]] = {
     if (!internal.containsKey(key)) {
       None
     } else {
-      val value = remove(key)
+      val value = internal.remove(key)
       internal.put(key, value)
       Some(value)
     }
+  }
+
+  def get(key: Array[Byte]): Option[Array[Byte]] = {
+    val bKey = ByteBuffer.wrap(key)
+    get(bKey)
   }
 
 }

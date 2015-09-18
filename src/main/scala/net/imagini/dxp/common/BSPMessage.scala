@@ -7,11 +7,9 @@ import java.nio.ByteBuffer
  */
 object BSPMessage {
 
-  def encodeKey(key: Vid): ByteBuffer = ByteBuffer.wrap(key.bytes)
+  def encodeKey(key: Vid): Array[Byte] = key.bytes
 
-  def decodeKey(key: ByteBuffer): Vid = Vid(key.array)
-
-  def encodePayload(payload: (Byte, Map[Vid, Edge])): ByteBuffer = {
+  def encodePayload(payload: (Byte, Map[Vid, Edge])): Array[Byte]  = {
     val (iter, edges) = payload
     val len = edges.foldLeft(1 + 2)((l, item) => l + 8 + 1 + item._1.bytes.length + 4)
     val result = ByteBuffer.allocate(len)
@@ -24,10 +22,13 @@ object BSPMessage {
       result.put(v.bytes)
     }
     }
-    ByteBuffer.wrap(result.array)
+    result.array
   }
 
-  def decodePayload(payload: ByteBuffer): (Byte, Map[Vid, Edge]) = {
+  def decodeKey(key: Array[Byte]): Vid = Vid(key)
+  def decodePayload(bytes: Array[Byte]): (Byte, Map[Vid, Edge]) = decodePayload(bytes, 0)
+  def decodePayload(bytes: Array[Byte], offset: Int): (Byte, Map[Vid, Edge]) = {
+    val payload = ByteBuffer.wrap(bytes, offset, bytes.length - offset)
     val iter = payload.get
     val size = payload.getShort.toInt
     (iter, (for (i <- (1 to size)) yield {
@@ -41,5 +42,6 @@ object BSPMessage {
       (vid, edge)
     }).toMap)
   }
+
 }
 

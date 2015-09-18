@@ -12,13 +12,11 @@ class GraphStreamApplication(config: Configuration) extends DonutApp[GraphStream
     set("kafka.group.id", "GraphStreamingBSP")
     set("kafka.topics", "graphstream,graphstate")
     setBoolean("kafka.cogroup", true)
-    set("yarn.name", "GraphStreamingBSP")
+    set("yarn.name", "GraphStreaming")
     set("yarn.queue", "developers")
+    setBoolean("yarn.keepContainerst", true)
     setInt("yarn.master.priority", 0)
     setLong("yarn.master.timeout.s", 3600L)
   })
 
-  def runOnYarn: Unit = runOnYarn(3 * 1024)
-
-  def runLocally: Unit = runLocally(false)
 }

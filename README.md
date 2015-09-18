@@ -5,6 +5,8 @@ recursive stream processor on top of kafka
 
 TODO
 --------------------
+- librebind + jprofiler 
+- before submitting to yarn, check if the appName is already running on cluster 
 - LZ4ConcurrentHashMap - linked lz4 blocks with parallel expiring structure of uncompressed blocks
 
 

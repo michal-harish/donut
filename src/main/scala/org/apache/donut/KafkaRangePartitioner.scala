@@ -29,7 +29,7 @@ class KafkaRangePartitioner extends Partitioner {
 
   private def calculatePartition(numPartitions: Int, key: Array[Byte], keyOffset: Int): Int = {
     val unit = maxHash / (numPartitions)
-    val p = (BigInt.apply(1, key.slice(keyOffset, keyOffset + 4)) / unit).toInt
+    val p = (BigInt(1, key.slice(keyOffset, keyOffset + 4)) / unit).toInt
     math.min(p, numPartitions-1)
   }
 

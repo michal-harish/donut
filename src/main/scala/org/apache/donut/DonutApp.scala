@@ -50,10 +50,10 @@ class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]
     }
   }
 
-  final def runOnYarn(taskMemoryMb: Int): Unit = {
+  final def runOnYarn(taskMemoryMb: Int, awaitCompletion: Boolean): Unit = {
     try {
       val args: Array[String] = Array(taskMemoryMb.toString, "0")
-      YarnClient.submitApplicationMaster(config, true, this.getClass, args)
+      YarnClient.submitApplicationMaster(config, this.getClass, args, awaitCompletion)
     } catch {
       case e: Throwable => {
         log.error("", e)
@@ -102,8 +102,8 @@ class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]
       }
       }
 
-      val avgProgress = progress.sum / progress.size
-      lastProgress = (System.currentTimeMillis, math.max(0f,avgProgress))
+      val avgProgress = if (progress.size == 0) 0f else progress.sum / progress.size
+      lastProgress = (System.currentTimeMillis, math.min(math.max(0f,avgProgress), 1f))
     }
     lastProgress._2
   }

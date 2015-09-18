@@ -25,18 +25,10 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
   val counterProduced = new AtomicLong(0)
   val idSpaceSet = Set("a", "r", "d")
 
-  val producer = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
-    put("metadata.broker.list", config.get("kafka.brokers"))
-    put("request.required.acks", "0")
-    put("producer.type", "async")
-    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
-    put("partitioner.class", classOf[KafkaRangePartitioner].getName)
-    put("batch.num.messages", "500")
-    put("compression.codec", "2") //SNAPPY
-  }))
+  val snappyProducer = kafkaUtils.createSnappyProducer[KafkaRangePartitioner](numAcks = 0, batchSize = 500)
 
   override def onShutdown: Unit = {
-    producer.close
+    snappyProducer.close
   }
 
   override def awaitingTermination: Unit = {
@@ -49,7 +41,7 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
         override def handleMessage(messageAndOffset: MessageAndOffset): Unit = {
           val payload = messageAndOffset.message.payload
           //FIXME now that we have ByteBuffers vdna decoder should support offset to deserialize from
-          val payloadArray: Array[Byte] = util.Arrays.copyOfRange(payload.array, payload.arrayOffset(), payload.arrayOffset + messageAndOffset.message.payloadSize )
+          val payloadArray: Array[Byte] = util.Arrays.copyOfRange(payload.array, payload.arrayOffset, payload.arrayOffset + payload.remaining)
           val vdnaMsg = vdnaMessageDecoder.decodeBytes(payloadArray)
           counterReceived.incrementAndGet
 
@@ -74,11 +66,15 @@ class SyncsTransformProcessUnit(config: Configuration, logicalPartition: Int, to
       val vdnaId = Vid("vdna", importMsg.getUserUid.toString)
       val partnerId = Vid(importMsg.getIdSpace, importMsg.getPartnerUserId)
       val edge = Edge("AAT", 1.0, importMsg.getTimestamp)
-      producer.send(
+      snappyProducer.send(
         new KeyedMessage(
-          "graphstream", BSPMessage.encodeKey(vdnaId), BSPMessage.encodePayload((1, Map(partnerId -> edge)))),
+          "graphstream",
+            ByteBuffer.wrap(BSPMessage.encodeKey(vdnaId)),
+            ByteBuffer.wrap(BSPMessage.encodePayload((1, Map(partnerId -> edge))))),
         new KeyedMessage(
-          "graphstream", BSPMessage.encodeKey(partnerId), BSPMessage.encodePayload((1, Map(vdnaId -> edge))))
+          "graphstream",
+            ByteBuffer.wrap(BSPMessage.encodeKey(partnerId)),
+            ByteBuffer.wrap(BSPMessage.encodePayload((1, Map(vdnaId -> edge)))))
       )
       counterProduced.addAndGet(2L)
     } catch {
