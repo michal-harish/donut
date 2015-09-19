@@ -22,3 +22,7 @@ KAFKA ADMIN
 ./bin/kafka-topics.sh --zookeeper message-01.prod.visualdna.com  --create --topic graphstate --partitions 24 --replication-factor 1 --config cleanup.policy=compact
 - SYS-5029 log.cleaner.enable=true
 - SYS-5023 git repo sys/scala-deploy to distribute stable dependencies to the cluster
+- 
+
+
+![Local State](https://raw.githubusercontent.com/michal-harish/donut/master/doc/Donut_LocalState.png)
