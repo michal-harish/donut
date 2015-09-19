@@ -27,11 +27,4 @@ KAFKA ADMIN
 
 DESIGN
 ======
-
-Logical Partitioning
---------------------
-
-Local State
------------
-
 ![](/doc/Donut_LocalState.png)
