@@ -1,6 +1,6 @@
 # Donut - Recursive Streaming Processor
 
-- This a stream processing *playground* which shares many concepts and ideas with [Apache Samza](http://samza.apache.org/)
+- This is a stream processing *playground* which shares many concepts and ideas with [Apache Samza](http://samza.apache.org/)
 	- logical partitionining and stream cogroup
 	- it utilises Kafka log compaction topics
 	- it provides local state management
