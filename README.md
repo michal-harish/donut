@@ -12,7 +12,7 @@
 	- The YARN deployment is slighly more elegant based on [Yarn1 Project](https://github.com/michal-harish/yarn1) which allows launching distributed application seamlessly from IDE - the launchers are in the `src/test/scala/Launchers.scala` because launching from test packages allows for most of the dependencies to be `provided`
 	- The aim is also to potentially expose the local state externally via API
 	- It is fixed to at-least-once guarantee requiring fully idempotent application design
-	- It is more focused on iterative graph processing algorithms and the starting point for it was the [Connected Components](https://en.wikipedia.org/wiki/Connected_component_(graph_theory)) algorithm, more specifically it's [BSP](https://en.wikipedia.org/wiki/Bulk_synchronous_parallel) equivalent
+	- It is more focused on iterative graph processing algorithms and the starting point for it was the [Connected Components](https://en.wikipedia.org/wiki/Connected_component_(graph_theory)) algorithm, more specifically it's [BSP](https://en.wikipedia.org/wiki/Bulk_synchronous_parallel) equivalent.. this prototype is under net.imagini.dxp.
 
 ![](doc/Donut_LocalState.png)
 
@@ -23,6 +23,7 @@
 - integrate librebind for task profiling with jprofiler 
 - before submitting to yarn, check if the appName is already running on cluster 
 - **LZ4LocalStorage** with 2 regions: 1) hot region of simple concurrent linked hash map 2) sorted lz4 blocks with bloom filter and range available for quick consultation. The hot region is defined by maximum size and when enough keys become eligible for eviction they are compressed into a sorted block and lz4-compressed and moved to the second region. Similarly when the second region reaches it's maximum size the oldest lz4 block is evicted, ultimately freeing memory
+- **Expose Local Storage as Key-Value API** and try mapping a Spark RDD onto it
 
 
 # Kafka admin notes
