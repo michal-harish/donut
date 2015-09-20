@@ -12,7 +12,7 @@ import org.apache.hadoop.conf.Configuration
 /**
  * Created by mharis on 14/09/15.
  */
-class GraphStreamProcessUnit(config: Configuration, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
+class GraphStreamingBSPProcessUnit(config: Configuration, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
   extends DonutAppTask(config, logicalPartition, totalLogicalPartitions, topics) {
 
   val bspIn = new AtomicLong(0)

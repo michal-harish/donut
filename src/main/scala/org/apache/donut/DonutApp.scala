@@ -14,6 +14,8 @@ import scala.reflect.ClassTag
  */
 class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]) extends YarnMaster(config) {
 
+  config.reloadConfiguration
+
   private val log = LoggerFactory.getLogger(classOf[DonutApp[_]])
 
   val taskClass: Class[T] = t.runtimeClass.asInstanceOf[Class[T]]

@@ -1,35 +1,35 @@
 import net.imagini.dxp.common.{BSPMessage, VdnaClusterConfig}
-import net.imagini.dxp.graphbsp.GraphStreamApplication
-import net.imagini.dxp.syncstransform.SyncsTransformApplication
+import net.imagini.dxp.graphbsp.GraphStreamingBSP
+import net.imagini.dxp.syncstransform.GraphSyncsStreamingTransform
 import org.apache.donut.KafkaUtils
 
 /**
  * Created by mharis on 14/09/15.
  */
 object GraphStreamLocalLauncher extends App {
-  new GraphStreamApplication().runLocally(multiThreadMode = false)
+  new GraphStreamingBSP().runLocally(multiThreadMode = false)
 }
 
 object GraphStreamYarnLauncher extends App {
-  new GraphStreamApplication().runOnYarn(20 * 1024, awaitCompletion = true)
+  new GraphStreamingBSP().runOnYarn(20 * 1024, awaitCompletion = true)
 }
 
 
 object GraphStreamYarnSubmit extends App {
-  new GraphStreamApplication().runOnYarn(20 * 1024, awaitCompletion = false)
+  new GraphStreamingBSP().runOnYarn(20 * 1024, awaitCompletion = false)
 }
 
 object SyncTransformLocalLauncher extends App {
-  new SyncsTransformApplication().runLocally(multiThreadMode = false)
+  new GraphSyncsStreamingTransform().runLocally(multiThreadMode = false)
 }
 
 object SyncTransformYarnLauncher extends App {
-  new SyncsTransformApplication().runOnYarn(taskMemoryMb = 16 * 1024, awaitCompletion = true )
+  new GraphSyncsStreamingTransform().runOnYarn(taskMemoryMb = 16 * 1024, awaitCompletion = true )
   //FIXME json deserializers kill memory - even 12 x 3GBs (!) will kill container but this is a simple transformation 256Mb should be enough
 }
 
 object SyncTransformYarnSubmit extends App {
-  new SyncsTransformApplication().runOnYarn(taskMemoryMb = 4 * 1024, awaitCompletion = false)
+  new GraphSyncsStreamingTransform().runOnYarn(taskMemoryMb = 4 * 1024, awaitCompletion = false)
 }
 
 object GraphStreamDebugger extends App {
