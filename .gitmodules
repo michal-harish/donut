@@ -1,0 +1,3 @@
+[submodule "yarn1"]
+	path = yarn1
+	url = git@github.com:michal-harish/yarn1.git

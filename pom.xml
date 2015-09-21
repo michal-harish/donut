@@ -5,107 +5,81 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.apache.donut</groupId>
-    <artifactId>donut-core</artifactId>
+    <artifactId>donut-parent</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>core</module>
+        <module>yarn1</module>
+        <module>examples</module>
+    </modules>
 
     <properties>
-        <hadoop.version>2.3.0-cdh5.0.3</hadoop.version>
         <!--<zookeeper.version>3.4.5</zookeeper.version>-->
+        <hadoop.version>2.3.0-cdh5.0.3</hadoop.version>
         <kafka.version>0.8.2.1</kafka.version>
         <scala.major>2.10</scala.major>
         <scala.minor>2.10.4</scala.minor>
     </properties>
 
-    <dependencies>
-        <!-- vdna libs -->
-        <dependency>
-            <groupId>net.imagini.common</groupId>
-            <artifactId>messaging</artifactId>
-            <version>12.1.2</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.apache.kafka</groupId>
-                    <artifactId>kafka_2.10</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.rabbitmq</groupId>
-                    <artifactId>amqp-client</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.rabbitmq</groupId>
-                    <artifactId>amqp-client</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>net.imagini.common</groupId>
-                    <artifactId>directory</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.beust</groupId>
-                    <artifactId>jcommander</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>net.jodah</groupId>
-                    <artifactId>lyra</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.reflections</groupId>
-                    <artifactId>reflections</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <!-- kafka provided -->
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka_${scala.major}</artifactId>
-            <version>${kafka.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <!--  hadoop yarn provided -->
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-yarn-client</artifactId>
-            <version>${hadoop.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-common</artifactId>
-            <version>${hadoop.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-hdfs</artifactId>
-            <version>${hadoop.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <!-- scala and logging provided -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.7.6</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.6</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-library</artifactId>
-            <version>${scala.minor}</version>
-            <scope>provided</scope>
-        </dependency>
-        <!-- testing only -->
-        <dependency>
-            <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_${scala.major}</artifactId>
-            <version>2.2.5</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <!-- kafka provided -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka_${scala.major}</artifactId>
+                <version>${kafka.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <!-- yarn execution and internal dependencies-->
+            <!-- FIXME change from Configuration to Propeties or to yarn1.Configuration -->
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-common</artifactId>
+                <version>${hadoop.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.yarn1</groupId>
+                <artifactId>yarn1-exec</artifactId>
+                <version>0.0.1-SNAPSHOT</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.donut</groupId>
+                <artifactId>donut-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- logging -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>1.7.6</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-log4j12</artifactId>
+                <version>1.7.6</version>
+                <scope>provided</scope>
+            </dependency>
+            <!-- scala and testing -->
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-library</artifactId>
+                <version>${scala.minor}</version>
+                <scope>provided</scope>
+            </dependency>
+            <!-- testing only -->
+            <dependency>
+                <groupId>org.scalatest</groupId>
+                <artifactId>scalatest_${scala.major}</artifactId>
+                <version>2.2.5</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <repositories>
         <repository>
@@ -130,6 +104,7 @@
         </repository>
     </repositories>
 
+
     <pluginRepositories>
         <pluginRepository>
             <id>scala-tools.org</id>
@@ -138,138 +113,71 @@
         </pluginRepository>
     </pluginRepositories>
 
+
     <build>
-        <sourceDirectory>src/main/scala</sourceDirectory>
-        <testSourceDirectory>src/test/scala</testSourceDirectory>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-        </resources>
         <plugins>
-            <plugin>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>2.10</version>
-                <executions>
-                    <execution>
-                        <id>extract</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>unpack-dependencies</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>target/classes</outputDirectory>
-                            <includeScope>runtime</includeScope>
-                            <excludeScope>provided</excludeScope>
-                            <includes>**/*.class,**/*.xml,**/*.properties</includes>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.3</version>
                 <configuration>
                     <source>1.7</source>
                     <target>1.7</target>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.scala-tools</groupId>
-                <artifactId>maven-scala-plugin</artifactId>
-                <version>2.15.2</version>
-                <configuration>
-                    <scalaVersion>${scala.minor}</scalaVersion>
-                    <jvmArgs>
-                        <jvmArg>-Xmx4536m</jvmArg>
-                    </jvmArgs>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>testCompile</id>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>testCompile</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>compile</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.7</version>
-                <configuration>
-                    <skipTests>true</skipTests>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.scalatest</groupId>
-                <artifactId>scalatest-maven-plugin</artifactId>
-                <version>1.0-RC1</version>
-                <configuration>
-                    <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
-                    <junitxml>.</junitxml>
-                    <filereports>WDF TestSuite.txt</filereports>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>test</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>test</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!--<plugin>-->
-                <!--<groupId>org.apache.maven.plugins</groupId>-->
-                <!--<artifactId>maven-shade-plugin</artifactId>-->
-                <!--<version>1.5</version>-->
-                <!--<executions>-->
-                    <!--<execution>-->
-                        <!--<phase>package</phase>-->
-                        <!--<goals>-->
-                            <!--<goal>shade</goal>-->
-                        <!--</goals>-->
-                        <!--<configuration>-->
-                            <!--<filters>-->
-                                <!--<filter>-->
-                                    <!--<artifact>*:*</artifact>-->
-                                    <!--<excludes>-->
-                                        <!--<exclude>org/datanucleus/**</exclude>-->
-                                        <!--<exclude>META-INF/*.SF</exclude>-->
-                                        <!--<exclude>META-INF/*.DSA</exclude>-->
-                                        <!--<exclude>META-INF/*.RSA</exclude>-->
-                                    <!--</excludes>-->
-                                <!--</filter>-->
-                            <!--</filters>-->
-                            <!--<shadedArtifactAttached>false</shadedArtifactAttached>-->
-                            <!--<finalName>GraphStreamYarnApp</finalName>-->
-                            <!--<transformers>-->
-                                <!--<transformer-->
-                                        <!--implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">-->
-                                    <!--<resource>reference.conf</resource>-->
-                                <!--</transformer>-->
-                                <!--<transformer-->
-                                        <!--implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">-->
-                                    <!--<manifestEntries>-->
-                                        <!--<Main-Class>net.imagini.dxp.streaming.GraphStreamYarnApplication</Main-Class>-->
-                                    <!--</manifestEntries>-->
-                                <!--</transformer>-->
-                            <!--</transformers>-->
-                        <!--</configuration>-->
-                    <!--</execution>-->
-                <!--</executions>-->
-            <!--</plugin>-->
         </plugins>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.scala-tools</groupId>
+                    <artifactId>maven-scala-plugin</artifactId>
+                    <version>2.15.2</version>
+                    <configuration>
+                        <scalaVersion>${scala.minor}</scalaVersion>
+                        <jvmArgs>
+                            <jvmArg>-Xmx4536m</jvmArg>
+                        </jvmArgs>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>testCompile</id>
+                            <phase>test-compile</phase>
+                            <goals>
+                                <goal>testCompile</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>compile</id>
+                            <phase>compile</phase>
+                            <goals>
+                                <goal>compile</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>2.7</version>
+                    <configuration>
+                        <skipTests>true</skipTests>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.scalatest</groupId>
+                    <artifactId>scalatest-maven-plugin</artifactId>
+                    <version>1.0-RC1</version>
+                    <executions>
+                        <execution>
+                            <id>test</id>
+                            <phase>test</phase>
+                            <goals>
+                                <goal>test</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
     </build>
-
-
 </project>
