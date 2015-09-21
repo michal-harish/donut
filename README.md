@@ -80,6 +80,9 @@ And then creating topic with compact cleanup policy
 ## Development
 </a>
 
+The project contains one submodule so after cloning you need to run: `git submodule update --init`
+
+### TODOs
 - replace hadoop.Configuration for yarn1.Configuration
 - bootstrap fetcher could be stopped after it is caught up provided the delta fetcher updates the local state
 - integrate librebind for task profiling with jprofiler 

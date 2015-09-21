@@ -21,7 +21,7 @@
         </dependency>
         <!-- yarn1 -->
         <dependency>
-            <groupId>net.imagini.yarn1</groupId>
+            <groupId>org.apache.yarn1</groupId>
             <artifactId>yarn1-exec</artifactId>
         </dependency>
         <!-- FIXME change from Configuration to Propeties or to yarn1.Configuration -->
