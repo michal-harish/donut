@@ -1,8 +1,8 @@
 package org.apache.donut
 
 import java.lang.reflect.Constructor
+import java.util.Properties
 import java.util.concurrent.{TimeUnit, Executors}
-import org.apache.hadoop.conf.Configuration
 import org.apache.yarn1.{YarnContainerRequest, YarnMaster, YarnClient}
 import org.slf4j.LoggerFactory
 
@@ -12,16 +12,14 @@ import scala.reflect.ClassTag
  * Created by mharis on 14/09/15.
  * The DonutApp must be extended by the application and then either runOnYarn or runLocally
  */
-class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]) extends YarnMaster(config) {
-
-  config.reloadConfiguration
+class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) extends YarnMaster(config) {
 
   private val log = LoggerFactory.getLogger(classOf[DonutApp[_]])
 
   val taskClass: Class[T] = t.runtimeClass.asInstanceOf[Class[T]]
   val kafkaUtils: KafkaUtils = new KafkaUtils(config)
-  val topics = config.get("kafka.topics").split(",").toSeq
-  val groupId = config.get("kafka.group.id")
+  val topics = config.getProperty("kafka.topics").split(",").toSeq
+  val groupId = config.getProperty("kafka.group.id")
   val updateFrequencyMs = TimeUnit.SECONDS.toMillis(30)
 
   private var numLogicalPartitions = -1
@@ -32,7 +30,7 @@ class DonutApp[T <: DonutAppTask](config: Configuration)(implicit t: ClassTag[T]
     try {
       numLogicalPartitions = if (!multiThreadMode) 1 else KafkaUtils(config).getNumLogicalPartitions(topics)
       val taskConstructor: Constructor[T] = taskClass.getConstructor(
-        classOf[Configuration], classOf[Int], classOf[Int], classOf[Seq[String]])
+        classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
       val executor = Executors.newFixedThreadPool(numLogicalPartitions)
       (0 to numLogicalPartitions - 1).foreach(lp => {
         executor.submit(taskConstructor.newInstance(config, new Integer(lp), new Integer(numLogicalPartitions), topics))

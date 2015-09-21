@@ -1,10 +1,10 @@
 package org.apache.donut
 
+import java.util.Properties
 import java.util.concurrent.{ConcurrentHashMap, Executors, TimeUnit}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
-import org.apache.hadoop.conf.Configuration
 
 
 /**
@@ -18,7 +18,7 @@ import org.apache.hadoop.conf.Configuration
  *
  */
 
-abstract class DonutAppTask(config: Configuration, val logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
+abstract class DonutAppTask(config: Properties, val logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
   extends Runnable {
 
   private val log = LoggerFactory.getLogger(classOf[DonutAppTask])
@@ -62,7 +62,7 @@ abstract class DonutAppTask(config: Configuration, val logicalPartition: Int, to
     log.info(s"Starting Donut Task for logical partition ${logicalPartition}/${totalLogicalPartitions}")
     val fetchers = partitionsToConsume.flatMap {
       case (topic, partitions) => partitions.map(partition => {
-        createFetcher(topic, partition, config.get("kafka.group.id"))
+        createFetcher(topic, partition, config.getProperty("kafka.group.id"))
       })
     }
     bootSequenceCompleted = bootSequence.size == 0 || checkBootSequenceCompleted

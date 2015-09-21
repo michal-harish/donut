@@ -1,18 +1,18 @@
 package net.imagini.dxp.graphbsp
 
 import java.nio.ByteBuffer
+import java.util.Properties
 import java.util.concurrent.atomic.AtomicLong
 
 import kafka.message.MessageAndOffset
 import kafka.producer.KeyedMessage
 import net.imagini.dxp.common.BSPMessage
 import org.apache.donut._
-import org.apache.hadoop.conf.Configuration
 
 /**
  * Created by mharis on 14/09/15.
  */
-class GraphStreamingBSPProcessUnit(config: Configuration, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
+class GraphStreamingBSPProcessUnit(config: Properties, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
   extends DonutAppTask(config, logicalPartition, totalLogicalPartitions, topics) {
 
   val bspIn = new AtomicLong(0)

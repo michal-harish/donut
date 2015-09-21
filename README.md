@@ -21,12 +21,12 @@ This is a stream processing *playground* which shares many concepts and ideas wi
 **TODO Donut Application Architecture ... Pipeline, Component, Processing Unit, Logical Partition**
 
 - Local State is purely in memory without replication and relies by design on state bootstrap from compacted topic. (The idea is to have hot regions of the local state to be accessible in constant time as normal concurrent hash map and have the cold regions sorted and  compressed lz4 with bloom filter index and have the oldest lz4 blocks evicted)
-- The YARN deployment is slighly more elegant based on [Yarn1 Project](https://github.com/michal-harish/yarn1) which allows launching distributed application seamlessly from IDE - the launchers are in the `src/test/scala/Launchers.scala` because launching from test packages allows for most of the dependencies to be `provided`
-- The aim is also to potentially expose the local state externally via API
 - It is fixed to at-least-once guarantee requiring fully idempotent application design
 - It is more focused on iterative graph processing algorithms and the starting point for it was the [Connected Components](https://en.wikipedia.org/wiki/Connected_component_(graph_theory)) algorithm, more specifically it's [BSP](https://en.wikipedia.org/wiki/Bulk_synchronous_parallel) equivalent.. this prototype is under net.imagini.dxp.
 
 ![](doc/Donut_LocalState.png)
+
+### Limitations and prototype shortcuts
 
 <a name="configuration">
 ## Configuration
@@ -83,6 +83,8 @@ And then creating topic with compact cleanup policy
 The project contains one submodule so after cloning you need to run: `git submodule update --init`
 
 ### TODOs
+
+- in the recursive example of graph stream BSP emit null messages to clear the connections on eviction
 - replace hadoop.Configuration for yarn1.Configuration
 - bootstrap fetcher could be stopped after it is caught up provided the delta fetcher updates the local state
 - integrate librebind for task profiling with jprofiler 

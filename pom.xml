@@ -16,8 +16,6 @@
     </modules>
 
     <properties>
-        <!--<zookeeper.version>3.4.5</zookeeper.version>-->
-        <hadoop.version>2.3.0-cdh5.0.3</hadoop.version>
         <kafka.version>0.8.2.1</kafka.version>
         <scala.major>2.10</scala.major>
         <scala.minor>2.10.4</scala.minor>
@@ -25,51 +23,37 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- kafka provided -->
-            <dependency>
-                <groupId>org.apache.kafka</groupId>
-                <artifactId>kafka_${scala.major}</artifactId>
-                <version>${kafka.version}</version>
-                <scope>provided</scope>
-            </dependency>
-            <!-- yarn execution and internal dependencies-->
-            <!-- FIXME change from Configuration to Propeties or to yarn1.Configuration -->
-            <dependency>
-                <groupId>org.apache.hadoop</groupId>
-                <artifactId>hadoop-common</artifactId>
-                <version>${hadoop.version}</version>
-                <scope>provided</scope>
-            </dependency>
             <dependency>
                 <groupId>org.apache.yarn1</groupId>
-                <artifactId>yarn1-exec</artifactId>
-                <version>0.0.1-SNAPSHOT</version>
+                <artifactId>yarn1</artifactId>
+                <version>2.3.0</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.donut</groupId>
                 <artifactId>donut-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
-
-            <!-- logging -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka_${scala.major}</artifactId>
+                <version>${kafka.version}</version>
+            </dependency>
+            <!-- log4j provided by kafka -->
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
                 <version>1.7.6</version>
-                <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-log4j12</artifactId>
                 <version>1.7.6</version>
-                <scope>provided</scope>
             </dependency>
             <!-- scala and testing -->
             <dependency>
                 <groupId>org.scala-lang</groupId>
                 <artifactId>scala-library</artifactId>
                 <version>${scala.minor}</version>
-                <scope>provided</scope>
             </dependency>
             <!-- testing only -->
             <dependency>
@@ -91,16 +75,6 @@
             <id>cloudera</id>
             <name>Cloudera Maven Repo</name>
             <url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
-        </repository>
-        <repository>
-            <id>visualdna-releases</id>
-            <url>https://maven.visualdna.com/nexus/content/repositories/releases</url>
-            <layout>default</layout>
-        </repository>
-        <repository>
-            <id>visualdna-snaphots</id>
-            <url>https://maven.visualdna.com/nexus/content/repositories/snapshots</url>
-            <layout>default</layout>
         </repository>
     </repositories>
 

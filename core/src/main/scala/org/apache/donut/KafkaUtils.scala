@@ -10,16 +10,15 @@ import kafka.common.{OffsetAndMetadata, TopicAndPartition}
 import kafka.consumer.{ConsumerConfig, Consumer, SimpleConsumer}
 import kafka.message.MessageAndMetadata
 import kafka.producer.{Partitioner, ProducerConfig, Producer}
-import org.apache.hadoop.conf.Configuration
 import org.slf4j.LoggerFactory
 
 /**
  * Created by mharis on 14/09/15.
  */
-case class KafkaUtils(val config: Configuration) {
+case class KafkaUtils(val config: Properties) {
   private val log = LoggerFactory.getLogger(classOf[DonutApp[_]])
 
-  val kafkaBrokers = config.get("kafka.brokers")
+  val kafkaBrokers = config.getProperty("kafka.brokers")
   val soTimeout: Int = 100000
   val bufferSize: Int = 64 * 1024
 
@@ -30,7 +29,7 @@ case class KafkaUtils(val config: Configuration) {
   })
 
   def getNumLogicalPartitions(topics: Seq[String]): Int = {
-    val cogroup = config.getBoolean("kafka.cogroup", false)
+    val cogroup = config.getProperty("kafka.cogroup", "false").toBoolean
     val topicParts = getPartitionMap(topics)
     val maxParts = topicParts.map(_._2).max
     val result = if (cogroup) {

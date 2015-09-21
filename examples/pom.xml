@@ -2,21 +2,22 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <parent>
-        <artifactId>donut-parent</artifactId>
-        <groupId>org.apache.donut</groupId>
-        <version>1.0-SNAPSHOT</version>
-    </parent>
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.apache.donut</groupId>
-    <packaging>jar</packaging>
     <artifactId>donut-examples</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <!--<zookeeper.version>3.4.5</zookeeper.version>-->
+        <hadoop.version>2.3.0</hadoop.version>
+        <cdh.version>cdh5.0.3</cdh.version>
+        <kafka.version>0.8.2.1</kafka.version>
+        <scala.major>2.10</scala.major>
+        <scala.minor>2.10.4</scala.minor>
+    </properties>
+
     <dependencies>
-        <dependency>
-            <groupId>org.apache.donut</groupId>
-            <artifactId>donut-core</artifactId>
-        </dependency>
-        <!-- vdna libs -->
+        <!-- custom message deserializer libs - will be put into the distributed jar -->
         <dependency>
             <groupId>net.imagini.common</groupId>
             <artifactId>messaging</artifactId>
@@ -52,26 +53,105 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- kafka -->
+        <!-- donut expects hadoop to be provided so we specify version we run on our cluster -->
         <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka_${scala.major}</artifactId>
+            <groupId>org.apache.donut</groupId>
+            <artifactId>donut-core</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-library</artifactId>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-yarn-client</artifactId>
+            <version>${hadoop.version}-${cdh.version}</version>
+            <scope>provided</scope>
         </dependency>
-        <!-- FIXME change from Configuration to Propeties or to yarn1.Configuration -->
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
+            <version>${hadoop.version}-${cdh.version}</version>
+            <scope>provided</scope>
         </dependency>
-        <!-- testing only -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-hdfs</artifactId>
+            <version>${hadoop.version}-${cdh.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- kafka - override to provided, assuming yarn1.casspath contains /opt/scala/kafka_2.10-0.8.2.1.jar -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka_${scala.major}</artifactId>
+            <version>${kafka.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.6</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.6</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- logging provided same version comes with kafka -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.6</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.6</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- scala - provided, assuming yarn1.casspath contains /opt/scala/scala-library-2.10.4.jar -->
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>${scala.minor}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- test -->
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_${scala.major}</artifactId>
+            <version>2.2.5</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <repositories>
+        <repository>
+            <id>scala-tools.org</id>
+            <name>Scala-tools Maven2 Repository</name>
+            <url>http://scala-tools.org/repo-releases</url>
+        </repository>
+        <repository>
+            <id>cloudera</id>
+            <name>Cloudera Maven Repo</name>
+            <url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
+        </repository>
+        <repository>
+            <id>visualdna-releases</id>
+            <url>https://maven.visualdna.com/nexus/content/repositories/releases</url>
+            <layout>default</layout>
+        </repository>
+    </repositories>
+
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>scala-tools.org</id>
+            <name>Scala-tools Maven2 Repository</name>
+            <url>http://scala-tools.org/repo-releases</url>
+        </pluginRepository>
+    </pluginRepositories>
 
     <build>
         <sourceDirectory>src/main/scala</sourceDirectory>
@@ -90,7 +170,6 @@
                         <configuration>
                             <outputDirectory>target/classes</outputDirectory>
                             <includeScope>runtime</includeScope>
-                            <excludeScope>provided</excludeScope>
                             <includes>**/*.class,**/*.xml,**/*.properties</includes>
                         </configuration>
                     </execution>

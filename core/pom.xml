@@ -22,12 +22,7 @@
         <!-- yarn1 -->
         <dependency>
             <groupId>org.apache.yarn1</groupId>
-            <artifactId>yarn1-exec</artifactId>
-        </dependency>
-        <!-- FIXME change from Configuration to Propeties or to yarn1.Configuration -->
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-common</artifactId>
+            <artifactId>yarn1</artifactId>
         </dependency>
         <!-- logging -->
         <dependency>

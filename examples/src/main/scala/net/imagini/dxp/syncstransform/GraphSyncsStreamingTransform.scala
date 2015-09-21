@@ -1,7 +1,9 @@
 package net.imagini.dxp.syncstransform
 
+import java.io.FileInputStream
+import java.util.Properties
+
 import org.apache.donut.DonutApp
-import org.apache.hadoop.conf.Configuration
 
 /**
  * Created by mharis on 15/09/15.
@@ -10,8 +12,8 @@ import org.apache.hadoop.conf.Configuration
  * set of partitions from json serialized 'datasync' topic and transforms each sync (a pair of connected IDs)
  * to a pair of messages representing a delta edge and reverse edge between the IDs into 'graphstream' topic.
  */
-class GraphSyncsStreamingTransform(config: Configuration) extends DonutApp[SyncsTransformProcessUnit](config) {
-  def this() = this(new Configuration {
+class GraphSyncsStreamingTransform(config: Properties) extends DonutApp[SyncsTransformProcessUnit](config) {
+  def this() = this(new Properties {
     /**
      * pipeline environment global configuration
      * yarn1.site=/etc/...
@@ -20,15 +22,15 @@ class GraphSyncsStreamingTransform(config: Configuration) extends DonutApp[Syncs
      * kafka.brokers=...
      * zookeeper.connect=...
      */
-    addResource("/etc/vdna/graphstream/config.properties")
+    load(new FileInputStream("/etc/vdna/graphstream/config.properties"))
 
     /**
      *  GraphSyncsStreamingTransform component configuration
      */
-    setBoolean("yarn1.keepContainers", true)
-    set("kafka.group.id", "GraphSyncsStreamingBSP")
-    set("kafka.topics", "datasync")
-    setBoolean("kafka.cogroup", false)
+    setProperty("yarn1.keepContainers", "true")
+    setProperty("kafka.group.id", "GraphSyncsStreamingBSP")
+    setProperty("kafka.topics", "datasync")
+    setProperty("kafka.cogroup", "false")
   })
 
 }

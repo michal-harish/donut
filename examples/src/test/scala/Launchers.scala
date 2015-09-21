@@ -1,8 +1,10 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 import net.imagini.dxp.common.BSPMessage
 import net.imagini.dxp.graphbsp.GraphStreamingBSP
 import net.imagini.dxp.syncstransform.GraphSyncsStreamingTransform
 import org.apache.donut.KafkaUtils
-import org.apache.hadoop.conf.Configuration
 
 /**
  * Created by mharis on 14/09/15.
@@ -33,9 +35,11 @@ object SyncTransformYarnSubmit extends App {
   new GraphSyncsStreamingTransform().runOnYarn(taskMemoryMb = 4 * 1024, awaitCompletion = false)
 }
 
+object Config extends Properties {
+  load( new FileInputStream("/etc/vdna/graphstream/config.properties"))
+}
 object GraphStreamDebugger extends App {
-  val config = new Configuration { addResource("/etc/vdna/graphstream/config.properties") }
-  val kafkaUtils = new KafkaUtils(config)
+  val kafkaUtils = new KafkaUtils(Config)
   kafkaUtils.createDebugConsumer("graphstream", (msg) => {
     val vid = BSPMessage.decodeKey(msg.key)
     val payload = msg.message match {
@@ -49,8 +53,7 @@ object GraphStreamDebugger extends App {
 }
 
 object GraphStateDebugger extends App {
-  val config = new Configuration { addResource("/etc/vdna/graphstream/config.properties") }
-  val kafkaUtils = new KafkaUtils(config)
+  val kafkaUtils = new KafkaUtils(Config)
   kafkaUtils.createDebugConsumer("graphstate", (msg) => {
     val vid = BSPMessage.decodeKey(msg.key)
     val payload = msg.message match {
@@ -65,9 +68,7 @@ object GraphStateDebugger extends App {
 
 object OffsetReport extends App {
 
-  val config = new Configuration { addResource("/etc/vdna/graphstream/config.properties") }
-
-  val kafkaUtils = new KafkaUtils(config)
+  val kafkaUtils = new KafkaUtils(Config)
 
   kafkaUtils.getPartitionMap(Seq("datasync")).foreach { case (topic, numPartitions) => {
     List("GraphStreamingBSP", "").foreach(consumerGroupId => {
