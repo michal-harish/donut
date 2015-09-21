@@ -1,38 +1,38 @@
 import java.io.FileInputStream
 import java.util.Properties
 
-import net.imagini.dxp.common.BSPMessage
-import net.imagini.dxp.graphbsp.GraphStreamingBSP
-import net.imagini.dxp.syncstransform.GraphSyncsStreamingTransform
+import net.imagini.graphstream.common.BSPMessage
+import net.imagini.graphstream.connectedbsp.ConnectedBSP
+import net.imagini.graphstream.syncstransform.SyncsToGraph
 import org.apache.donut.KafkaUtils
 
 /**
  * Created by mharis on 14/09/15.
  */
 object GraphStreamLocalLauncher extends App {
-  new GraphStreamingBSP().runLocally(multiThreadMode = false)
+  new ConnectedBSP().runLocally(multiThreadMode = false)
 }
 
 object GraphStreamYarnLauncher extends App {
-  new GraphStreamingBSP().runOnYarn(20 * 1024, awaitCompletion = true)
+  new ConnectedBSP().runOnYarn(20 * 1024, awaitCompletion = true)
 }
 
 
 object GraphStreamYarnSubmit extends App {
-  new GraphStreamingBSP().runOnYarn(20 * 1024, awaitCompletion = false)
+  new ConnectedBSP().runOnYarn(20 * 1024, awaitCompletion = false)
 }
 
 object SyncTransformLocalLauncher extends App {
-  new GraphSyncsStreamingTransform().runLocally(multiThreadMode = false)
+  new SyncsToGraph().runLocally(multiThreadMode = false)
 }
 
 object SyncTransformYarnLauncher extends App {
-  new GraphSyncsStreamingTransform().runOnYarn(taskMemoryMb = 16 * 1024, awaitCompletion = true )
+  new SyncsToGraph().runOnYarn(taskMemoryMb = 16 * 1024, awaitCompletion = true )
   //FIXME json deserializers kill memory - even 12 x 3GBs (!) will kill container but this is a simple transformation 256Mb should be enough
 }
 
 object SyncTransformYarnSubmit extends App {
-  new GraphSyncsStreamingTransform().runOnYarn(taskMemoryMb = 4 * 1024, awaitCompletion = false)
+  new SyncsToGraph().runOnYarn(taskMemoryMb = 4 * 1024, awaitCompletion = false)
 }
 
 object Config extends Properties {

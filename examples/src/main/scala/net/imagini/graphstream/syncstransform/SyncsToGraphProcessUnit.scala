@@ -1,4 +1,4 @@
-package net.imagini.dxp.syncstransform
+package net.imagini.graphstream.syncstransform
 
 import java.nio.ByteBuffer
 import java.util
@@ -9,13 +9,13 @@ import kafka.message.MessageAndOffset
 import kafka.producer.KeyedMessage
 import net.imagini.common.message.VDNAUserImport
 import net.imagini.common.messaging.serde.VDNAUniversalDeserializer
-import net.imagini.dxp.common.{BSPMessage, Edge, Vid}
+import net.imagini.graphstream.common.{BSPMessage, Edge, Vid}
 import org.apache.donut.{FetcherDelta, Fetcher, KafkaRangePartitioner, DonutAppTask}
 
 /**
  * Created by mharis on 15/09/15.
  */
-class SyncsTransformProcessUnit(config: Properties, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
+class SyncsToGraphProcessUnit(config: Properties, logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
   extends DonutAppTask(config, logicalPartition, totalLogicalPartitions, topics) {
 
   val vdnaMessageDecoder = new VDNAUniversalDeserializer

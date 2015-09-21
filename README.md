@@ -84,7 +84,7 @@ The project contains one submodule so after cloning you need to run: `git submod
 ### TODOs
 
 - The consumer group currently doesn't implement any rebalance algorithm so either check if the appName is already running on cluster or implement rebalance 
-- In the recursive example of graph stream BSP emit null messages to clear the connections on eviction
+- In the recursive example graphstream emit null messages to clear the connections on eviction
 - Bootstrap fetcher could be stopped after it is caught up provided the delta fetcher updates the local state but this requires the DeltaFetcher to move the state topic offset as well
 - Integrate librebind for task profiling with jprofiler  
 - **LZ4LocalStorage** with 2 regions: 1) hot region of simple concurrent linked hash map 2) sorted lz4 blocks with bloom filter and range available for quick consultation. The hot region is defined by maximum size and when enough keys become eligible for eviction they are compressed into a sorted block and lz4-compressed and moved to the second region. Similarly when the second region reaches it's maximum size the oldest lz4 block is evicted, ultimately freeing memory

@@ -1,5 +1,5 @@
 
-package net.imagini.dxp.common
+package net.imagini.graphstream.common
 
 class Vid(val isVdna: Boolean, val idSpace: Short, val bytes: Array[Byte], val hash: Int)
 extends java.io.Serializable with Ordered[Vid] {

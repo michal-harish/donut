@@ -1,4 +1,4 @@
-package net.imagini.dxp.common
+package net.imagini.graphstream.common
 
 /**
  * Created by mharis on 10/09/15.

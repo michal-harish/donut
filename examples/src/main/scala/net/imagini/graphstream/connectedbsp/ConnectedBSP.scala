@@ -1,4 +1,4 @@
-package net.imagini.dxp.graphbsp
+package net.imagini.graphstream.connectedbsp
 
 import java.io.FileInputStream
 import java.util.Properties
@@ -8,7 +8,7 @@ import org.apache.donut.DonutApp
 /**
  * Created by mharis on 14/09/15.
  *
- * This is a stateful recursive streaming processor. Each unit (GraphStreamProcessUnit) processes cogrouped partitions
+ * This is a stateful recursive streaming processor. Each unit (ConnectedBSPProcessUnit) processes cogrouped partitions
  * from 2 topics, one for Delta and one for State:
  *
  * A. the Delta is recursively processed from and to topic 'graphstream'
@@ -17,7 +17,7 @@ import org.apache.donut.DonutApp
  * The input into this application comes from SyncsTransformApplication which provides fresh edges into the graph.
  * The input is amplified by recursive consulation of State and production of secondary delta messages.
  */
-class GraphStreamingBSP(config: Properties) extends DonutApp[GraphStreamingBSPProcessUnit](config) {
+class ConnectedBSP(config: Properties) extends DonutApp[ConnectedBSPProcessUnit](config) {
   def this() = this(new Properties {
     /**
      * pipeline environment global configuration
