@@ -26,8 +26,6 @@ This is a stream processing *playground* which shares many concepts and ideas wi
 
 ![](doc/Donut_LocalState.png)
 
-### Limitations and prototype shortcuts
-
 <a name="configuration">
 ## Configuration
 </a>
