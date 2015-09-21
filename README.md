@@ -40,8 +40,7 @@ paramter|default|description
 **kafka.group.id** | - | Consumer group for the total set of all kafka partitions
 **kafka.topics** | - | Coma-separated list of kafka topics to subscribe to
 **kafka.cogroup** | false | If set to `false` the number of logical partitions is defined by the topic with the highest number of partitions. If set to `true` the number of logical partitions will be the Highest Common Factor of the number of partitions in each subscribed topic.  
-**yarn1.keepContainers** | `false` | If set to `true` any failed container will be auto matically restarted (and also any containers that haven't failed will be kept across attempts).
-*yarn1.site* | `/etc/hadoop` | Local path where the application is launched pointing to yarn (and hdfs-hadoop configuration) files. This path should contain at least these files: `yarn-site.xml`, `hdfs-site.xml`, `core-site.xml`
+**yarn1.keepContainers** | `false` | If set to `true` any failed container will be automatically restarted.
 *yarn1.site* | `/etc/hadoop` | Local path where the application is launched pointing to yarn (and hdfs-hadoop configuration) files. This path should contain at least these files: `yarn-site.xml`, `hdfs-site.xml`, `core-site.xml`
 *yarn1.queue* | - | YARN scheduling queue name
 yarn1... | ... | For more Yarn1 optional configurations see [Yarn1 Configuration](https://github.com/michal-harish/yarn1#configuration)
