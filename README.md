@@ -10,12 +10,12 @@ This is a stream processing *playground* which shares many concepts and ideas wi
 
 
 1. [Desgin](#design)
-2. [Configuration](#configuration) 	
-3. [Operations](#operations)
+2. [Example](#example)
+3. [Configuration](#configuration) 	
 4. [Development](#development)
 
 <a name="design">
-##Design 		 
+##Design 
 </a>
 
 **TODO Donut Application Architecture ... Pipeline, Component, Processing Unit, Logical Partition**
@@ -25,6 +25,13 @@ This is a stream processing *playground* which shares many concepts and ideas wi
 - It is more focused on iterative graph processing algorithms and the starting point for it was the [Connected Components](https://en.wikipedia.org/wiki/Connected_component_(graph_theory)) algorithm, more specifically it's [BSP](https://en.wikipedia.org/wiki/Bulk_synchronous_parallel) equivalent.. this prototype is under net.imagini.dxp.
 
 ![](doc/Donut_LocalState.png)
+
+<a name="example">
+## Example 
+</a>
+
+The fundamental use case we are trying to implement here is a streaming equivalent of BSP Graph Connected Components which is recursive by nature.
+This example application lives in a separate repository [GraphStream](TODO)
 
 <a name="configuration">
 ## Configuration
@@ -43,35 +50,6 @@ paramter|default|description
 *yarn1.queue* | - | YARN scheduling queue name
 yarn1... | ... | For more Yarn1 optional configurations see [Yarn1 Configuration](https://github.com/michal-harish/yarn1#configuration)
 
-<a name="operations">
-## Operations
-</a>
-
-### Brokers configuration
-For state topics we require log cleaner enabled on the brokers
-
-```server.properties
-log.cleaner.enable=true
-```
-
-### Creating normal topic with retention
-
-```bash
-./bin/kafka-topics.sh --create --topic graphstream --partitions 24 --replication-factor 1 --config cleanup.policy=delete
-```
-
-### Creating a compacted topic
-And then creating topic with compact cleanup policy
-```bash
-./bin/kafka-topics.sh --create --topic graphstate --partitions 24 --replication-factor 1 --config cleanup.policy=compact
-```
-
-### Deleting topics
-
-```bash
-./bin/kafka-topics.sh --delete --topic graphstream
-./bin/kafka-topics.sh --delete --topic graphstate
-```
 
 <a name="development">
 ## Development

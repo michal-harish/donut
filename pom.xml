@@ -12,7 +12,6 @@
     <modules>
         <module>core</module>
         <module>yarn1</module>
-        <module>examples</module>
     </modules>
 
     <properties>
