@@ -16,6 +16,7 @@
     </modules>
 
     <properties>
+        <hadoop.version>2.3.0</hadoop.version>
         <kafka.version>0.8.2.1</kafka.version>
         <scala.major>2.10</scala.major>
         <scala.minor>2.10.4</scala.minor>
@@ -23,22 +24,7 @@
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.apache.yarn1</groupId>
-                <artifactId>yarn1</artifactId>
-                <version>2.3.0</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.donut</groupId>
-                <artifactId>donut-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.kafka</groupId>
-                <artifactId>kafka_${scala.major}</artifactId>
-                <version>${kafka.version}</version>
-            </dependency>
-            <!-- log4j provided by kafka -->
+            <!-- logging -->
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
@@ -70,11 +56,6 @@
             <id>scala-tools.org</id>
             <name>Scala-tools Maven2 Repository</name>
             <url>http://scala-tools.org/repo-releases</url>
-        </repository>
-        <repository>
-            <id>cloudera</id>
-            <name>Cloudera Maven Repo</name>
-            <url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
         </repository>
     </repositories>
 

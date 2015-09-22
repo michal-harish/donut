@@ -53,12 +53,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- donut expects hadoop to be provided so we specify version we run on our cluster -->
-        <dependency>
-            <groupId>org.apache.donut</groupId>
-            <artifactId>donut-core</artifactId>
-            <version>${project.version}</version>
-        </dependency>
+        <!-- donut-core is included by source and expects hadoop and kafka to be provided so we specify version we run on our cluster -->
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-yarn-client</artifactId>
@@ -77,44 +72,32 @@
             <version>${hadoop.version}-${cdh.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!-- kafka - override to provided, assuming yarn1.casspath contains /opt/scala/kafka_2.10-0.8.2.1.jar -->
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka_${scala.major}</artifactId>
             <version>${kafka.version}</version>
+            <!-- override to provided, in our example yarn1.classpath contains /opt/scala/kafka_2.10-0.8.2.1.jar -->
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.7.6</version>
+            <!-- provided same version comes with kafka -->
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.6</version>
+            <!-- provided same version comes with kafka -->
             <scope>provided</scope>
         </dependency>
-        <!-- logging provided same version comes with kafka -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.7.6</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.6</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- scala - provided, assuming yarn1.casspath contains /opt/scala/scala-library-2.10.4.jar -->
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
             <version>${scala.minor}</version>
+            <!-- override to provided, in our example yarn1.classpath contains  /opt/scala/scala-library-2.10.4.jar -->
             <scope>provided</scope>
         </dependency>
         <!-- test -->
@@ -158,6 +141,80 @@
         <testSourceDirectory>src/test/scala</testSourceDirectory>
         <plugins>
             <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals><goal>add-source</goal></goals>
+                        <configuration>
+                            <sources>
+                                <source>../yarn1/src/main/java</source>
+                                <source>../core/src/main/scala</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.3</version>
+                <configuration>
+                    <source>1.7</source>
+                    <target>1.7</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.scala-tools</groupId>
+                <artifactId>maven-scala-plugin</artifactId>
+                <version>2.15.2</version>
+                <configuration>
+                    <scalaVersion>${scala.minor}</scalaVersion>
+                    <jvmArgs>
+                        <jvmArg>-Xmx4536m</jvmArg>
+                    </jvmArgs>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>testCompile</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>compile</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.7</version>
+                <configuration>
+                    <skipTests>true</skipTests>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.scalatest</groupId>
+                <artifactId>scalatest-maven-plugin</artifactId>
+                <version>1.0-RC1</version>
+                <executions>
+                    <execution>
+                        <id>test</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <version>2.10</version>
                 <executions>
@@ -175,6 +232,7 @@
                     </execution>
                 </executions>
             </plugin>
+
             <!--<plugin>-->
             <!--<groupId>org.apache.maven.plugins</groupId>-->
             <!--<artifactId>maven-shade-plugin</artifactId>-->
