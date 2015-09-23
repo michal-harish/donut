@@ -34,7 +34,7 @@ This is a stream processing *playground* which shares many concepts and ideas wi
 </a>
 
 The fundamental use case we are trying to implement here is a streaming equivalent of BSP Graph Connected Components which is recursive by nature.
-This example application lives in a separate repository [GraphStream](TODO)
+This example application lives in a separate repository [GraphStream](https://github.com/michal-harish/graphstream)
 
 <a name="configuration">
 ## Configuration
