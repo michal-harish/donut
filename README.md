@@ -1,12 +1,15 @@
-# Donut - Recursive Streaming Processor
-(Alternative name: *Strudel*)
+# Donut - Recursive Stream Processing Framework 
+
+- Alternative name: *Strudel*
+- **Author**: 2015 © Michal Harish (michal.harish AT gmail.com) 
+- **License**: [GNU LGPL-3.0](LICENSE) 
 
 This is a stream processing *playground* which shares many concepts and ideas with [Apache Samza](http://samza.apache.org/), but this prototype has been developed with recurisve usecase which we found difficult to implement with Samza.
-
 
 - logical partitionining and stream cogroup
 - Kafka log compaction topics for fault-tolerant state management
 - Framework provides custom Kafka consumer group implementation deployed in YARN
+
 
 
 1. [Desgin](#design)
