@@ -19,6 +19,7 @@ package org.apache.donut
  */
 
 import java.util.Properties
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{ConcurrentHashMap, Executors, TimeUnit}
 import org.slf4j.LoggerFactory
 
@@ -49,6 +50,8 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
   }
   }
 
+  private val fetcherMonitor = new AtomicReference[(Fetcher,Throwable)](null)
+
   private var bootSequenceCompleted = false
 
   private[donut] val bootSequence = new ConcurrentHashMap[String, Boolean]()
@@ -76,8 +79,15 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
     }
   }
 
+  final private[donut] def handleFetcherError(fetcher: Fetcher, e: Throwable): Unit = {
+    fetcherMonitor.synchronized{
+      fetcherMonitor.set((fetcher, e))
+      fetcherMonitor.notify
+    }
+  }
+
   final override def run: Unit = {
-    log.info(s"Starting Donut Task for logical partition ${logicalPartition}/${totalLogicalPartitions}")
+    log.info(s"Starting Task for logical partition ${logicalPartition}/${totalLogicalPartitions}")
     val fetchers = partitionsToConsume.flatMap {
       case (topic, partitions) => partitions.map(partition => {
         createFetcher(topic, partition, config.getProperty("kafka.group.id"))
@@ -92,19 +102,21 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
     }
     val executor = Executors.newFixedThreadPool(fetchers.size)
     fetchers.foreach(fetcher => executor.submit(fetcher))
-    //TODO handle fetcher failures and propagate to AppTask
     executor.shutdown
     try {
-      while (!Thread.interrupted()) {
-        if (executor.awaitTermination(30, TimeUnit.SECONDS)) {
-          return
-        } else {
-          awaitingTermination
+      while (!executor.isTerminated) {
+        if (Thread.interrupted) throw new InterruptedException
+        fetcherMonitor.synchronized {
+          fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(30))
+          if (fetcherMonitor.get != null) {
+            executor.shutdownNow
+            throw new Exception(s"Error in fetcher ${fetcherMonitor.get._1}", fetcherMonitor.get._2)
+          }
         }
+        awaitingTermination
       }
-      log.warn("Donut Task interrupted!")
     } catch {
-      case e: Throwable => log.warn("Donut Task terminated", e)
+      case e: Throwable => log.warn("Task terminated", e)
     } finally {
       onShutdown
     }

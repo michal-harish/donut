@@ -103,8 +103,7 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
         }
       }
     } catch {
-      //TODO propagate execption to the container so that it can exit with error code and inform AM
-      case e: Throwable => log.error("Terminating fetcher", e)
+      case e: Throwable => task.handleFetcherError(this, e)
     } finally {
       if (consumer != null) consumer.close
     }
