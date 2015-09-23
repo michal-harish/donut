@@ -55,8 +55,6 @@ class LocalStorage(val maxEntries: Int) {
     }
   }
 
-  //  val internal = new ConcurrentHashMap[ByteBuffer, (ByteBuffer,Array[Byte])]()
-
   def size: Int = internal.size
 
   def contains(key: ByteBuffer): Boolean = {
@@ -80,12 +78,6 @@ class LocalStorage(val maxEntries: Int) {
     internal.put(bKey, value)
   }
 
-  def put(key: Array[Byte], value: Array[Byte]): Unit = {
-    val bKey = ByteBuffer.wrap(key)
-    internal.remove(bKey)
-    internal.put(bKey, value)
-  }
-
   def get(key: ByteBuffer): Option[Array[Byte]] = {
     if (!internal.containsKey(key)) {
       None
@@ -94,11 +86,6 @@ class LocalStorage(val maxEntries: Int) {
       internal.put(key, value)
       Some(value)
     }
-  }
-
-  def get(key: Array[Byte]): Option[Array[Byte]] = {
-    val bKey = ByteBuffer.wrap(key)
-    get(bKey)
   }
 
 }

@@ -108,10 +108,10 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
         if (Thread.interrupted) throw new InterruptedException
         fetcherMonitor.synchronized {
           fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(30))
-          if (fetcherMonitor.get != null) {
-            executor.shutdownNow
-            throw new Exception(s"Error in fetcher ${fetcherMonitor.get._1}", fetcherMonitor.get._2)
-          }
+        }
+        if (fetcherMonitor.get != null) {
+          executor.shutdownNow
+          throw new Exception(s"Error in fetcher ${fetcherMonitor.get._1}", fetcherMonitor.get._2)
         }
         awaitingTermination
       }
