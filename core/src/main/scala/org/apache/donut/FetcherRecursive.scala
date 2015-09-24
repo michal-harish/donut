@@ -24,6 +24,10 @@ import kafka.message.MessageAndOffset
 
 /**
  * Created by mharis on 16/09/15.
+ *
+ * @deprecated - it was an original prototype which needs to be re-implmeneted - here we will
+ *            have also the feature where after bootstrap the delta fetecher will update the
+ *            state and also the fetcher offset while state fetcher will actually not need to consume
  */
 @deprecated
 abstract class FetcherRecursive (task: DonutAppTask, topic: String, partition: Int, groupId: String)

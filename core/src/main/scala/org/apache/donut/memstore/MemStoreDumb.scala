@@ -1,4 +1,4 @@
-package org.apache.donut
+package org.apache.donut.memstore
 
 /**
  * Donut - Recursive Stream Processing Framework
@@ -31,13 +31,13 @@ import java.util.Collections
  * i.e. linked structure of lz4 blocks based on access time each containing pure concurrent hashmap of values
  * with the top n blocks kept uncompressed
  */
-class LocalStorage(val maxEntries: Int) {
+class MemStoreDumb(val maxEntries: Int) extends MemStore {
   val underlying = new util.LinkedHashMap[ByteBuffer, Array[Byte]]() {
     override protected def removeEldestEntry(eldest: java.util.Map.Entry[ByteBuffer, Array[Byte]]): Boolean = size > maxEntries
   }
   val internal = Collections.synchronizedMap(underlying)
 
-  def minSizeInByte: Long = {
+  override def minSizeInBytes: Long = {
     internal.synchronized {
       val it = internal.entrySet.iterator
       var size = 0L
@@ -55,13 +55,17 @@ class LocalStorage(val maxEntries: Int) {
     }
   }
 
-  def size: Int = internal.size
+  override def size: Long = internal.size.toLong
 
-  def contains(key: ByteBuffer): Boolean = {
+  override def contains(key: ByteBuffer): Boolean = {
     internal.containsKey(key)
   }
 
-  def put(key: ByteBuffer, value: ByteBuffer): Unit = {
+  override def contains(key: Array[Byte]): Boolean = {
+    internal.containsKey(ByteBuffer.wrap(key))
+  }
+
+  override def put(key: ByteBuffer, value: ByteBuffer): Unit = {
     val bKey = key.slice
     internal.remove(bKey)
     if (value == null || value.remaining == 0) {
@@ -72,13 +76,29 @@ class LocalStorage(val maxEntries: Int) {
     }
   }
 
-  def put(key: ByteBuffer, value: Array[Byte]): Unit = {
+  override def put(key: Array[Byte], value: Array[Byte]): Unit = {
+    val k = ByteBuffer.wrap(key)
+    internal.remove(k)
+    if (value == null) {
+      internal.put(k, null)
+    } else {
+      internal.put(k, value)
+    }
+  }
+
+  override def put(key: ByteBuffer, value: Array[Byte]): Unit = {
     val bKey = key.slice
     internal.remove(bKey)
     internal.put(bKey, value)
   }
 
-  def get(key: ByteBuffer): Option[Array[Byte]] = {
+  override def get(key: Array[Byte]): Option[Array[Byte]] = {
+    get(ByteBuffer.wrap(key))
+  }
+
+
+
+  override def get(key: ByteBuffer): Option[Array[Byte]] = {
     if (!internal.containsKey(key)) {
       None
     } else {

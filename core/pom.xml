@@ -14,6 +14,12 @@
     </parent>
 
     <dependencies>
+        <!-- mapdb for localstorage -->
+        <dependency>
+            <groupId>org.mapdb</groupId>
+            <artifactId>mapdb</artifactId>
+            <version>2.0-beta7</version>
+        </dependency>
         <!-- kafka -->
         <dependency>
             <groupId>org.apache.kafka</groupId>
