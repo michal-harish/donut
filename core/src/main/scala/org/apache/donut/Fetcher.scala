@@ -123,8 +123,8 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
         fetchResponse.errorCode(topic, partition) match {
           case code if (numErrors > 5) => throw new Exception("Error fetching data from leader,  Reason: " + code)
           case ErrorMapping.OffsetOutOfRangeCode => {
+            log.warn(s"readOffset ${nextFetchOffset} for partition ${topic}/${partition} out of range, resetting readOffset")
             nextFetchOffset = onOutOfRangeOffset()
-            log.warn(s"readOffset ${topic}/${partition} out of range, resetting to offset ${nextFetchOffset}")
           }
           case code => {
             try {
