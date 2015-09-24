@@ -18,9 +18,12 @@ package org.apache.donut.memstore
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import java.io.{DataOutput, DataInput}
+
 import org.mapdb._
 
-class MemStoreMemDb(val maxSizeInMb: Int, val maxItemsCached: Int) extends MemStore {
+class MemStoreMemDb[V](val maxSizeInMb: Int, val maxItemsCached: Int, serde: ((V) => Array[Byte], DataInput => V))
+  extends MemStore[V](serde) {
 
   private val db = DBMaker
     .memoryDirectDB()
@@ -29,13 +32,22 @@ class MemStoreMemDb(val maxSizeInMb: Int, val maxItemsCached: Int) extends MemSt
     .cacheSize(maxItemsCached)
     .make()
 
-  private val map: HTreeMap[Array[Byte], Array[Byte]] = db.hashMapCreate("DonutLocalStore")
-      .expireStoreSize(maxSizeInMb.toDouble / 1024)
-      //.expireMaxSize(maxItems) //FIXME MapDB doesn't seem to honour this setting
-      .counterEnable()
-      .keySerializer(Serializer.BYTE_ARRAY)
-      .valueSerializer(Serializer.BYTE_ARRAY)
-      .make()
+  private val evicted: java.util.Set[Array[Byte]] = db.hashSetCreate("EvictedKeySet")
+    .expireStoreSize(1.0)
+    .serializer(Serializer.BYTE_ARRAY)
+    .make()
+
+  private val map: HTreeMap[Array[Byte], V] = db.hashMapCreate("KeyValueStore")
+    .expireStoreSize(maxSizeInMb.toDouble / 1024)
+    //.expireMaxSize(maxItems) //FIXME MapDB doesn't seem to honour this setting
+    .counterEnable()
+    .keySerializer(Serializer.BYTE_ARRAY)
+    .valueSerializer(new Serializer[V]() {
+    override def serialize(out: DataOutput, value: V): Unit = out.write(serde._1(value))
+
+    override def deserialize(in: DataInput, available: Int): V = serde._2(in)
+
+  }).make()
 
   private val store = Store.forDB(db)
 
@@ -44,31 +56,27 @@ class MemStoreMemDb(val maxSizeInMb: Int, val maxItemsCached: Int) extends MemSt
   override def minSizeInBytes: Long = store.getCurrSize // bug in MapDB FreeSize and CurrSize are swapped
 
   override def contains(key: Array[Byte]) = {
-    map.containsKey(key)
+    evicted.contains(key) || map.containsKey(key)
   }
 
-  val EVICTED = Array[Byte]()
-
-  override def put(key: Array[Byte], value: Array[Byte]): Unit = {
+  override def put(key: Array[Byte], value: V): Unit = {
     if (value == null) {
-      map.put(key, EVICTED)
+      map.remove(key)
+      evicted.add(key)
     } else {
       map.put(key, value)
     }
   }
 
-  override def get(key: Array[Byte]): Option[Array[Byte]] = {
-    val value = map.remove(key)
-    value match {
-      case null => None
-      case v: Array[Byte] if (v.length == 0) => {
-        map.put(key, EVICTED)
-        Some(null)
-      }
-      case v => {
-        map.put(key, v)
-        Some(value)
-      }
+  override def get(key: Array[Byte]): Option[V] = {
+    if (evicted.contains(key)) {
+      Some(null.asInstanceOf[V])
+    } else if (map.containsKey(key)) {
+      val value = map.remove(key)
+      map.put(key, value)
+      Some(value)
+    } else {
+      None
     }
   }
 

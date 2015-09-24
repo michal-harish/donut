@@ -1,3 +1,5 @@
+package org.apache.donut.memstore
+
 /**
  * Donut - Recursive Stream Processing Framework
  * Copyright (C) 2015 Michal Harish
@@ -15,8 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package org.apache.donut.memstore
 
+import java.io.DataInput
 import java.nio.ByteBuffer
 
 /**
@@ -25,7 +27,7 @@ import java.nio.ByteBuffer
  * 2) support nulls values
  * 3) Honor expiration limits they expose within 1 second
  */
-abstract class MemStore { //[V](serializer: (V) => Array[Byte]) {
+abstract class MemStore[V](serde: ((V) => Array[Byte], DataInput => V)) {
 
   def size: Long
 
@@ -33,24 +35,16 @@ abstract class MemStore { //[V](serializer: (V) => Array[Byte]) {
 
   def contains(key: Array[Byte]): Boolean
 
-  def put(key: Array[Byte], value: Array[Byte]): Unit
+  def put(key: Array[Byte], value: V): Unit
 
-  def get(key: Array[Byte]): Option[Array[Byte]]
+  def get(key: Array[Byte]): Option[V]
 
-  def put(key: ByteBuffer, value: ByteBuffer): Unit = {
-    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
-    val valueBytes = if (value == null) null else
-      java.util.Arrays.copyOfRange(value.array, value.arrayOffset, value.arrayOffset + value.remaining)
-    put(keyBytes, valueBytes)
-  }
-
-  def put(key: ByteBuffer, value: Array[Byte]): Unit = {
+  def put(key: ByteBuffer, value: V): Unit = {
     val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
     put(keyBytes, value)
   }
 
-
-  def get(key: ByteBuffer): Option[Array[Byte]] = {
+  def get(key: ByteBuffer): Option[V] = {
     val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
     get(keyBytes)
   }

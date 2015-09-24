@@ -18,10 +18,11 @@ package org.apache.donut
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import java.nio.ByteBuffer
+import java.io.DataInput
 
 import org.apache.donut.memstore.{MemStoreMemDb, MemStoreDumb, MemStore}
 import org.scalatest.{FlatSpec, Matchers}
+import scala.collection.JavaConverters._
 
 /**
  * Created by mharis on 14/09/15.
@@ -30,9 +31,16 @@ class MemStoreTest extends FlatSpec with Matchers {
 
   implicit def stringAsBytes(s: String): Array[Byte] = s.getBytes
 
+  val stringSerde = ((s:String) => s.getBytes, (in:DataInput) => {
+    val size = in.readInt
+    val bytes = new Array[Byte](size)
+    in.readFully(bytes)
+    new String(bytes)
+  })
+
   behavior of "Dumb LocalStorage1"
   it should "behave as expected" in {
-    val st = new MemStoreDumb(3)
+    val st = new MemStoreDumb[String](3, stringSerde )
     test(st)
     st.size should be(3)
     st.contains("8") should be(false)
@@ -41,21 +49,20 @@ class MemStoreTest extends FlatSpec with Matchers {
 
   behavior of "Fancy LocalStorage2"
   it should "behave as expected" in {
-    test(new MemStoreMemDb(1024, 2))
+    test(new MemStoreMemDb[String](1024, 2, stringSerde))
   }
 
-  def test(storage: MemStore) = {
+  def test(storage: MemStore[String]) = {
 
     storage.put("9", "A")
     storage.put("8", "B")
-    storage.put(ByteBuffer.wrap("7".getBytes), ByteBuffer.wrap("C".getBytes))
+    storage.put("7", "C")
     // after 3 puts the order of eviction is 7,8,(9)
     storage.size should be(3)
 
     storage.get("9") // refreshes 9 so the order of eviction is 9,7,(8)
     storage.put("6", "D") // pushes out 8
     storage.put("5", null) // pushes out 7
-
 
     storage.contains("9") should be(true)
     storage.contains("6") should be(true)
