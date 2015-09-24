@@ -18,7 +18,6 @@ package org.apache.donut.memstore
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import java.io.DataInput
 import java.nio.ByteBuffer
 import java.util
 import java.util.Collections
@@ -32,42 +31,81 @@ import java.util.Collections
  * i.e. linked structure of lz4 blocks based on access time each containing pure concurrent hashmap of values
  * with the top n blocks kept uncompressed
  */
-class MemStoreDumb[V](val maxEntries: Int, serde: ((V) => Array[Byte], DataInput => V)) extends MemStore[V](serde) {
-  val underlying = new util.LinkedHashMap[ByteBuffer, V]() {
-    override protected def removeEldestEntry(eldest: java.util.Map.Entry[ByteBuffer, V]): Boolean = size > maxEntries
+class MemStoreDumb(val maxEntries: Int) extends MemStore {
+  val underlying = new util.LinkedHashMap[ByteBuffer, Array[Byte]]() {
+    override protected def removeEldestEntry(eldest: java.util.Map.Entry[ByteBuffer, Array[Byte]]): Boolean = size > maxEntries
   }
   val internal = Collections.synchronizedMap(underlying)
 
-  override def minSizeInBytes: Long = -1L
+  override def minSizeInBytes: Long = {
+    internal.synchronized {
+      val it = internal.entrySet.iterator
+      var size = 0L
+      while (it.hasNext) {
+        val entry = it.next
+        size += 32 //Map.Entry overhead
+        size += entry.getKey.capacity + 16
+        size += (entry.getValue match {
+          case null => 0L
+          case v: Array[Byte] => v.length + 8
+        })
+      }
+      //TODO underlying hashmap capacity planning overhead
+      size
+    }
+  }
 
   override def size: Long = internal.size.toLong
 
-  override def contains(key: Array[Byte]): Boolean = contains(ByteBuffer.wrap(key))
+  override def contains(key: ByteBuffer): Boolean = {
+    internal.containsKey(key)
+  }
 
-  override def contains(key: ByteBuffer): Boolean = internal.containsKey(key)
+  override def contains(key: Array[Byte]): Boolean = {
+    internal.containsKey(ByteBuffer.wrap(key))
+  }
 
-  override def put(key: Array[Byte], value: V): Unit = put(ByteBuffer.wrap(key), value)
-
-  override def get(key: Array[Byte]): Option[V] = get(ByteBuffer.wrap(key))
-
-  override def put(key: ByteBuffer, value: V): Unit = {
-    if (value == null) {
-      internal.put(key, null.asInstanceOf[V])
+  override def put(key: ByteBuffer, value: ByteBuffer): Unit = {
+    val bKey = key.slice
+    internal.remove(bKey)
+    if (value == null || value.remaining == 0) {
+      internal.put(bKey, null)
     } else {
+      val bytes = util.Arrays.copyOfRange(value.array, value.arrayOffset, value.arrayOffset + value.remaining)
+      internal.put(bKey, bytes)
+    }
+  }
+
+  override def put(key: Array[Byte], value: Array[Byte]): Unit = {
+    val k = ByteBuffer.wrap(key)
+    internal.remove(k)
+    if (value == null) {
+      internal.put(k, null)
+    } else {
+      internal.put(k, value)
+    }
+  }
+
+  override def put(key: ByteBuffer, value: Array[Byte]): Unit = {
+    val bKey = key.slice
+    internal.remove(bKey)
+    internal.put(bKey, value)
+  }
+
+  override def get(key: Array[Byte]): Option[Array[Byte]] = {
+    get(ByteBuffer.wrap(key))
+  }
+
+
+
+  override def get(key: ByteBuffer): Option[Array[Byte]] = {
+    if (!internal.containsKey(key)) {
+      None
+    } else {
+      val value = internal.remove(key)
       internal.put(key, value)
+      Some(value)
     }
   }
-
-  override def get(key: ByteBuffer): Option[V] = {
-    internal.containsKey(key) match {
-      case false => None
-      case true => {
-        val value = internal.remove(key)
-        internal.put(key, value)
-        Some(value)
-      }
-    }
-  }
-
 
 }
