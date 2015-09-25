@@ -114,14 +114,15 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
         })
       }.toSeq
 
-      val progress: Seq[Float] = offsets.map { case (topic, partition, earliest, consumed, latest) => {
+      val progress: Seq[Double] = offsets.map { case (topic, partition, earliest, consumed, latest) => {
         val availableOffsets = latest - earliest
-        (consumed - earliest).toFloat / availableOffsets.toFloat
+        (consumed - earliest).toDouble / availableOffsets.toDouble
       }
       }
 
-      val avgProgress = if (progress.size == 0) 0f else progress.sum / progress.size
-      lastProgress = (System.currentTimeMillis, math.min(math.max(0f,avgProgress), 1f))
+      val avgProgress = if (progress.size == 0) 0f else (progress.sum / progress.size)
+      lastProgress = (System.currentTimeMillis, if (avgProgress.isNaN) 0f else math.min(math.max(0,avgProgress), 1).toFloat)
+
     }
     lastProgress._2
   }
