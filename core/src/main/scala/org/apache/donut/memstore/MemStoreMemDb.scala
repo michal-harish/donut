@@ -20,13 +20,12 @@ package org.apache.donut.memstore
 
 import org.mapdb._
 
-class MemStoreMemDb(val maxSizeInMb: Int, val maxItemsCached: Int) extends MemStore {
+class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
 
   private val db = DBMaker
     .memoryDirectDB()
     .transactionDisable()
-    .asyncWriteEnable()
-    .cacheSize(maxItemsCached)
+    //.asyncWriteEnable()
     .make()
 
   private val map: HTreeMap[Array[Byte], Array[Byte]] = db.hashMapCreate("DonutLocalStore")

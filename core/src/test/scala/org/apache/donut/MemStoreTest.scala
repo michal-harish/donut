@@ -30,7 +30,7 @@ class MemStoreTest extends FlatSpec with Matchers {
 
   implicit def stringAsBytes(s: String): Array[Byte] = s.getBytes
 
-  behavior of "Dumb LocalStorage1"
+  behavior of "MemStoreDumb"
   it should "behave as expected" in {
     val st = new MemStoreDumb(3)
     test(st)
@@ -39,9 +39,9 @@ class MemStoreTest extends FlatSpec with Matchers {
     st.contains("7") should be(false)
   }
 
-  behavior of "Fancy LocalStorage2"
+  behavior of "MemStoreMemDb"
   it should "behave as expected" in {
-    test(new MemStoreMemDb(1024, 2))
+    test(new MemStoreMemDb(1024))
   }
 
   def test(storage: MemStore) = {
