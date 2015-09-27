@@ -57,6 +57,17 @@ class MemStoreDumb(val maxEntries: Int) extends MemStore {
 
   override def size: Long = internal.size.toLong
 
+  override def iterator: Iterator[(Array[Byte], Array[Byte])] = new Iterator[(Array[Byte], Array[Byte])] {
+    val it = internal.entrySet().iterator()
+
+    override def hasNext: Boolean = it.hasNext
+
+    override def next(): (Array[Byte], Array[Byte]) = {
+      val entry = it.next
+      (entry.getKey.array, entry.getValue)
+    }
+  }
+
   override def contains(key: ByteBuffer): Boolean = {
     internal.containsKey(key)
   }
@@ -95,7 +106,6 @@ class MemStoreDumb(val maxEntries: Int) extends MemStore {
   override def get(key: Array[Byte]): Option[Array[Byte]] = {
     get(ByteBuffer.wrap(key))
   }
-
 
 
   override def get(key: ByteBuffer): Option[Array[Byte]] = {

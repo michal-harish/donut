@@ -37,6 +37,8 @@ abstract class MemStore { //[V](serializer: (V) => Array[Byte]) {
 
   def get(key: Array[Byte]): Option[Array[Byte]]
 
+  def iterator: Iterator[(Array[Byte], Array[Byte])]
+
   def put(key: ByteBuffer, value: ByteBuffer): Unit = {
     val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
     val valueBytes = if (value == null) null else

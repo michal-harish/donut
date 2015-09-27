@@ -19,6 +19,7 @@ package org.apache.donut
  */
 
 import java.nio.ByteBuffer
+import java.util
 
 import kafka.serializer.Encoder
 import kafka.utils.VerifiableProperties
@@ -34,12 +35,6 @@ class KafkaByteBufferEncoder extends Encoder[ByteBuffer] {
 
   override def toBytes(t: ByteBuffer): Array[Byte] = t match {
     case null => null
-    case b => {
-      val p = t.position
-      val bytes = new Array[Byte](t.remaining)
-      t.get(bytes)
-      t.position(p)
-      bytes
-    }
+    case b => util.Arrays.copyOfRange(t.array, t.arrayOffset, t.arrayOffset + t.remaining)
   }
 }

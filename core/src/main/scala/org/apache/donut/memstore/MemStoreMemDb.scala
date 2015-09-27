@@ -29,12 +29,12 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
     .make()
 
   private val map: HTreeMap[Array[Byte], Array[Byte]] = db.hashMapCreate("DonutLocalStore")
-      .expireStoreSize(maxSizeInMb.toDouble / 1024)
-      //.expireMaxSize(maxItems) //FIXME MapDB doesn't seem to honour this setting
-      .counterEnable()
-      .keySerializer(Serializer.BYTE_ARRAY)
-      .valueSerializer(Serializer.BYTE_ARRAY)
-      .make()
+    .expireStoreSize(maxSizeInMb.toDouble / 1024)
+    //.expireMaxSize(maxItems) //FIXME MapDB doesn't seem to honour this setting
+    .counterEnable()
+    .keySerializer(Serializer.BYTE_ARRAY)
+    .valueSerializer(Serializer.BYTE_ARRAY)
+    .make()
 
   private val store = Store.forDB(db)
 
@@ -68,6 +68,17 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
         map.put(key, v)
         Some(value)
       }
+    }
+  }
+
+  override def iterator: Iterator[(Array[Byte], Array[Byte])] = new Iterator[(Array[Byte], Array[Byte])] {
+    val it = MemStoreMemDb.this.map.entrySet.iterator
+
+    override def hasNext: Boolean = it.hasNext
+
+    override def next(): (Array[Byte], Array[Byte]) = {
+      val entry = it.next
+      (entry.getKey.array, entry.getValue)
     }
   }
 
