@@ -79,6 +79,8 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
     }
   }
 
+  final protected def handleError(e: Throwable): Unit = handleFetcherError(null, e)
+
   final private[donut] def handleFetcherError(fetcher: Fetcher, e: Throwable): Unit = {
     fetcherMonitor.synchronized{
       fetcherMonitor.set((fetcher, e))
@@ -87,7 +89,7 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
   }
 
   final override def run: Unit = {
-    log.info(s"Starting Task for logical partition ${logicalPartition}/${totalLogicalPartitions}")
+    log.info(s"Starting Task for logical partition ${logicalPartition}/${totalLogicalPartitions} of topics ")
     val fetchers = partitionsToConsume.flatMap {
       case (topic, partitions) => partitions.map(partition => {
         createFetcher(topic, partition, config.getProperty("kafka.group.id"))
