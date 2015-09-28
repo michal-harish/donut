@@ -41,6 +41,8 @@ abstract class FetcherBootstrap(task: DonutAppTask, topic: String, partition: In
 
   log.debug(s"[$bootSequenceId]: initialOffset = $initialFetchOffset, checkpoint offset = $getCheckpointOffset")
 
+  protected def isBooted: Boolean = booted
+
   final override private[donut]  def internalHandleMessageSet(messageSet: ByteBufferMessageSet): Long = {
     var nextFetchOffset:Long = -1L
     for(messageAndOffset <- messageSet) {

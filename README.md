@@ -63,7 +63,8 @@ The project contains one submodule so after cloning you need to run: `git submod
 
 ### TODOs
 
-- The consumer group currently doesn't implement any rebalance algorithm so either check if the appName is already running on cluster or implement rebalance 
-- Bootstrap fetcher could be stopped after it is caught up provided the delta fetcher updates the local state but this requires the DeltaFetcher to move the state topic offset as well
-- Integrate librebind for task profiling with jprofiler  
+- **Basic Application Master UI** with some guice server running on each task which reports progress, state stats, etc.
 - **Expose Local Storage as Key-Value API** and try mapping a Spark RDD onto it
+- The consumer group currently doesn't implement any rebalance algorithm so either check if the appName is already running on cluster or implement rebalance 
+- Bootstrap fetcher could be stopped after it is caught up provided the delta fetcher updates the local state but this requires the DeltaFetcher to move the state topic offset as well which itself requires a custom producer implementation - the Kafka Producer API returns message offset but is not exposed with default Producer. This is also problematic because state and delta topics may not have same number of partitions.
+- Integrate librebind for task profiling with jprofiler  
