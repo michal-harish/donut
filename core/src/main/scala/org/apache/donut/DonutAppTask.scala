@@ -120,7 +120,10 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
         awaitingTermination
       }
     } catch {
-      case e: Throwable => log.warn("Task terminated", e)
+      case e: Throwable => {
+        log.error("Task terminated with error", e)
+        throw e
+      }
     } finally {
       onShutdown
     }

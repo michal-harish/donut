@@ -38,7 +38,7 @@ object DonutYarnContainer {
     } catch {
       case e: Throwable => {
         e.printStackTrace(System.out)
-        System.exit(1)
+        System.exit(2)
       }
     }
   }
