@@ -71,6 +71,15 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
     }
   }
 
+  override def remove(key: Array[Byte]): Option[Array[Byte]] = {
+    val value = map.remove(key)
+    value match {
+      case null => None
+      case v: Array[Byte] if (v.length == 0) => Some(null)
+      case v => Some(value)
+    }
+  }
+
   override def iterator: Iterator[(Array[Byte], Array[Byte])] = new Iterator[(Array[Byte], Array[Byte])] {
     val it = MemStoreMemDb.this.map.entrySet.iterator
 

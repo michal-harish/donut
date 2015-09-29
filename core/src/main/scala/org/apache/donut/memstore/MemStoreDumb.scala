@@ -118,4 +118,11 @@ class MemStoreDumb(val maxEntries: Int) extends MemStore {
     }
   }
 
+  override def remove(key: Array[Byte]): Option[Array[Byte]] = {
+    if (!internal.containsKey(key)) {
+      None
+    } else {
+      Some(internal.remove(key))
+    }
+  }
 }

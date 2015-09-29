@@ -50,6 +50,8 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
   }
   }
 
+  protected val numFetchers = partitionsToConsume.map(_._2.size).sum
+
   private val fetcherMonitor = new AtomicReference[(Fetcher,Throwable)](null)
 
   private var bootSequenceCompleted = false
