@@ -103,7 +103,7 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
         }
       }
     } catch {
-      case e: Throwable => task.handleFetcherError(this, e)
+      case e: Throwable => task.propagateException(e)
     } finally {
       if (consumer != null) consumer.close
     }

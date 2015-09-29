@@ -52,7 +52,7 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
 
   protected val numFetchers = partitionsToConsume.map(_._2.size).sum
 
-  private val fetcherMonitor = new AtomicReference[(Fetcher,Throwable)](null)
+  private val fetcherMonitor = new AtomicReference[Throwable](null)
 
   private var bootSequenceCompleted = false
 
@@ -80,12 +80,10 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
       }
     }
   }
-
-  final protected def handleError(e: Throwable): Unit = handleFetcherError(null, e)
-
-  final private[donut] def handleFetcherError(fetcher: Fetcher, e: Throwable): Unit = {
+  
+  final protected[donut] def propagateException(e: Throwable): Unit = {
     fetcherMonitor.synchronized{
-      fetcherMonitor.set((fetcher, e))
+      fetcherMonitor.set(e)
       fetcherMonitor.notify
     }
   }
@@ -115,7 +113,7 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
         }
         if (fetcherMonitor.get != null) {
           executor.shutdownNow
-          throw new Exception(s"Error in fetcher ${fetcherMonitor.get._1}", fetcherMonitor.get._2)
+          throw new Exception(s"Error in task for logical partition ${logicalPartition}", fetcherMonitor.get)
         }
         awaitingTermination
       }
