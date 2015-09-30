@@ -38,6 +38,8 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
   val kafkaUtils: KafkaUtils = new KafkaUtils(config)
   val topics = config.getProperty("kafka.topics").split(",").toSeq
   val groupId = config.getProperty("kafka.group.id")
+  val taskMemoryMb: Int = config.getProperty("donut.task.memory.mb", "1024").toInt
+  val taskPriority: Int = config.getProperty("donut.task.priority", "0").toInt
   val updateFrequencyMs = TimeUnit.SECONDS.toMillis(30)
 
   private var numLogicalPartitions = -1
@@ -68,10 +70,9 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
     }
   }
 
-  final def runOnYarn(taskMemoryMb: Int, awaitCompletion: Boolean): Unit = {
+  final def runOnYarn(awaitCompletion: Boolean): Unit = {
     try {
-      val args: Array[String] = Array(taskMemoryMb.toString, "0")
-      YarnClient.submitApplicationMaster(config, this.getClass, args, awaitCompletion)
+      YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), awaitCompletion)
     } catch {
       case e: Throwable => {
         log.error("", e)
@@ -85,8 +86,6 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
    */
   final protected override def onStartUp(args: Array[String]): Unit = {
     numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
-    val taskMemoryMb = args(0).toInt
-    val taskPriority = args(1).toInt
     requestContainerGroup((0 to numLogicalPartitions - 1).map(lp => {
       val args: Array[String] = Array(taskClass.getName, lp.toString, numLogicalPartitions.toString) ++ topics
       new YarnContainerRequest(DonutYarnContainer.getClass, args, taskPriority, taskMemoryMb, 1)

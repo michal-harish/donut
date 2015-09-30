@@ -43,16 +43,18 @@ This example application lives in a separate repository [GraphStream](https://gi
 
 Each component of a pipeline has to be configured by at least the following parameters. Some of these will typically be shared across multiple components of the pipeline which can be loaded from the environment and some will be decisions made by the component implementation, e.g. kafka.brokers will be most likely same for all components but only long-running streaming components will need keepContainers=true,...
 
-paramter|default|description
---------|-------|-----------
-**kafka.brokers**| - | Coma-separated list of kafka broker addresses 
-**kafka.group.id** | - | Consumer group for the total set of all kafka partitions
-**kafka.topics** | - | Coma-separated list of kafka topics to subscribe to
-**kafka.cogroup** | false | If set to `false` the number of logical partitions is defined by the topic with the highest number of partitions. If set to `true` the number of logical partitions will be the Highest Common Factor of the number of partitions in each subscribed topic.  
-**yarn1.keepContainers** | `false` | If set to `true` any failed container will be automatically restarted.
-*yarn1.site* | `/etc/hadoop` | Local path where the application is launched pointing to yarn (and hdfs-hadoop configuration) files. This path should contain at least these files: `yarn-site.xml`, `hdfs-site.xml`, `core-site.xml`
-*yarn1.queue* | - | YARN scheduling queue name
-yarn1... | ... | For more Yarn1 optional configurations see [Yarn1 Configuration](https://github.com/michal-harish/yarn1#configuration)
+paramter                 | default       | description
+-------------------------|---------------|------------------------------------------------------------------------------
+*donut.task.memory.mb*   | 1024          | Memory to allocate for each processing unit in YARN context
+*donut.task.priority*    | 0             | Memory to allocate for each processing unit in YARN context [0-10]
+**kafka.brokers**        | -             | Coma-separated list of kafka broker addresses 
+**kafka.group.id**       | -             | Consumer group for the total set of all kafka partitions
+**kafka.topics**         | -             | Coma-separated list of kafka topics to subscribe to
+**kafka.cogroup**        | false         | If set to `false` the number of logical partitions is defined by the topic with the highest number of partitions. If set to `true` the number of logical partitions will be the Highest Common Factor of the number of partitions in each subscribed topic.  
+*yarn1.keepContainers*   | `false`       | If set to `true` any failed container will be automatically restarted.
+*yarn1.site*             | `/etc/hadoop` | Local path where the application is launched pointing to yarn (and hdfs-hadoop configuration) files. This path should contain at least these files: `yarn-site.xml`, `hdfs-site.xml`, `core-site.xml`
+*yarn1.queue*            | -             | YARN scheduling queue name
+yarn1...                 | ...           | For more Yarn1 optional configurations see [Yarn1 Configuration](https://github.com/michal-harish/yarn1#configuration)
 
 
 <a name="development">
