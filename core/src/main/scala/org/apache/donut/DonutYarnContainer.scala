@@ -37,7 +37,8 @@ object DonutYarnContainer {
       ).run
     } catch {
       case e: Throwable => {
-        e.printStackTrace(System.out)
+        e.printStackTrace()
+        Thread.sleep(5000)
         System.exit(2)
       }
     }
