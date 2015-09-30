@@ -99,8 +99,9 @@ case class KafkaUtils(val config: Properties) {
         val consumer = new SimpleConsumer(coordinator.host, coordinator.port, 100000, 64 * 1024, "consumerOffsetFetcher")
         try {
           val req = new OffsetFetchRequest(groupId, Seq(topicAndPartition))
+          val res = consumer.fetchOffsets(req)
           //FIXME handle errors, but fetchOffsets response doesn't have hasError method
-          val consumed = consumer.fetchOffsets(req).requestInfo(topicAndPartition).offset
+          val consumed = res.requestInfo(topicAndPartition).offset
           consumed
         } finally {
           consumer.close
@@ -110,17 +111,29 @@ case class KafkaUtils(val config: Properties) {
   }
 
 
-  protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long) = {
-    getCoordinator(groupId) match {
-      case None => throw new IllegalStateException
-      case Some(coordinator) => {
-        val consumer = new SimpleConsumer(coordinator.host, coordinator.port, 100000, 64 * 1024, "consumerOffsetCommitter")
-        try {
-          val req = new OffsetCommitRequest(groupId, Map(topicAndPartition -> OffsetAndMetadata(offset)))
-          if (consumer.commitOffsets(req).hasError) throw new IOException(s"Error committing offset for conumser group `${groupId}`")
-        } finally {
-          consumer.close
+  protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long): Unit = {
+    var numErrors = 0
+    while(true) try {
+      getCoordinator(groupId) match {
+        case None => throw new IllegalStateException
+        case Some(coordinator) => {
+          val consumer = new SimpleConsumer(coordinator.host, coordinator.port, 100000, 64 * 1024, "consumerOffsetCommitter")
+          try {
+            val req = new OffsetCommitRequest(groupId, Map(topicAndPartition -> OffsetAndMetadata(offset)))
+            val res = consumer.commitOffsets(req)
+            if (res.hasError) {
+              throw new IOException(s"Error committing offset for consumer group `${groupId}` " + res.describe(true))
+            }
+            return
+          } finally {
+            consumer.close
+          }
         }
+      }
+    } catch {
+      case e: IOException => {
+        numErrors += 1
+        if (numErrors > 3) throw e else Thread.sleep(1000)
       }
     }
   }
@@ -159,9 +172,9 @@ case class KafkaUtils(val config: Properties) {
 
     def fetch(readOffset: Long, fetchSize: Int): FetchResponse = {
       fetch(new FetchRequestBuilder()
-          .clientId(this.clientId)
-          .addFetch(topic, partition, readOffset, fetchSize)
-          .build())
+        .clientId(this.clientId)
+        .addFetch(topic, partition, readOffset, fetchSize)
+        .build())
     }
 
     def getEarliestOffset: Long = getOffsetRange(this, topicAndPartition, kafka.api.OffsetRequest.EarliestTime)
@@ -170,12 +183,12 @@ case class KafkaUtils(val config: Properties) {
 
     def getOffset: Long = getGroupOffset(groupId, topicAndPartition)
 
-    def commitOffset(offset: Long) : Unit = commitGroupOffset(groupId, topicAndPartition, offset)
+    def commitOffset(offset: Long): Unit = commitGroupOffset(groupId, topicAndPartition, offset)
 
   }
 
   def createSnappyProducer[P <: Partitioner](numAcks: Int, batchSize: Int)
-        (implicit p: Manifest[P])= new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+                                            (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", numAcks.toString)
     put("producer.type", "async")
@@ -186,7 +199,7 @@ case class KafkaUtils(val config: Properties) {
   }))
 
   def createCompactProducer[P <: Partitioner](numAcks: Int, batchSize: Int)
-        (implicit p: Manifest[P])= new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+                                             (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", numAcks.toString)
     put("producer.type", "async")
@@ -202,7 +215,7 @@ case class KafkaUtils(val config: Properties) {
       put("zookeeper.connect", config.get("zookeeper.connect"))
     }))
     val stream = consumer.createMessageStreams(Map(topic -> 1))(topic).head
-    for(msg <- stream) {
+    for (msg <- stream) {
       processor(msg)
     }
   }
