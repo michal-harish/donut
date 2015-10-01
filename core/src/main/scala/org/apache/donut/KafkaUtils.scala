@@ -188,7 +188,7 @@ case class KafkaUtils(val config: Properties) {
 
   }
 
-  def createSnappyProducer[P <: Partitioner](numAcks: Int, batchSize: Int)
+  def createSnappyProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
                                             (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", numAcks.toString)
@@ -196,10 +196,11 @@ case class KafkaUtils(val config: Properties) {
     put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
     put("partitioner.class", p.runtimeClass.getName)
     put("batch.num.messages", batchSize.toString)
+    put("queue.buffering.max.messages", queueSize.toString)
     put("compression.codec", "2") //SNAPPY
   }))
 
-  def createCompactProducer[P <: Partitioner](numAcks: Int, batchSize: Int)
+  def createCompactProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
                                              (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", numAcks.toString)
@@ -207,6 +208,7 @@ case class KafkaUtils(val config: Properties) {
     put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
     put("partitioner.class", p.runtimeClass.getName)
     put("batch.num.messages", batchSize.toString)
+    put("queue.buffering.max.messages", queueSize.toString)
     put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
   }))
 
