@@ -18,6 +18,7 @@ package org.apache.donut
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import java.io.IOException
 import java.lang.reflect.Constructor
 import java.util.Properties
 import java.util.concurrent.{TimeUnit, Executors}
@@ -99,29 +100,31 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
    */
   final protected override def getProgress: Float = {
     if (lastProgress._1 + updateFrequencyMs < System.currentTimeMillis) {
-      val offsets = kafkaUtils.getPartitionMap(topics).flatMap {
-        case (topic, numPartitions) => (0 to numPartitions - 1).map(partition => {
-          val leader = kafkaUtils.findLeader(topic, partition)
-          val consumer = new kafkaUtils.PartitionConsumer(topic, partition, leader, 10000, 64 * 1024, groupId)
-          var result = (topic, partition, -1L, -1L, -1L)
-          try {
-            result = (topic, partition, consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
-          } finally {
-            consumer.close
-          }
-          result
-        })
-      }.toSeq
+      try {
+        val offsets = kafkaUtils.getPartitionMap(topics).flatMap {
+          case (topic, numPartitions) => (0 to numPartitions - 1).map(partition => {
+            val leader = kafkaUtils.findLeader(topic, partition)
+            val consumer = new kafkaUtils.PartitionConsumer(topic, partition, leader, 10000, 64 * 1024, groupId)
+            var result = (topic, partition, -1L, -1L, -1L)
+            try {
+              result = (topic, partition, consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
+            } finally {
+              consumer.close
+            }
+            result
+          })
+        }.toSeq
 
-      val progress: Seq[Double] = offsets.map { case (topic, partition, earliest, consumed, latest) => {
-        val availableOffsets = latest - earliest
-        (consumed - earliest).toDouble / availableOffsets.toDouble
+        val progress: Seq[Double] = offsets.map { case (topic, partition, earliest, consumed, latest) => {
+          val availableOffsets = latest - earliest
+          (consumed - earliest).toDouble / availableOffsets.toDouble
+        }
+        }
+        val avgProgress = if (progress.size == 0) 0f else (progress.sum / progress.size)
+        lastProgress = (System.currentTimeMillis, if (avgProgress.isNaN) 0f else math.min(math.max(0, avgProgress), 1).toFloat)
+      } catch {
+        case e: IOException => log.warn("Could not read logical partition progress due to exception", e)
       }
-      }
-
-      val avgProgress = if (progress.size == 0) 0f else (progress.sum / progress.size)
-      lastProgress = (System.currentTimeMillis, if (avgProgress.isNaN) 0f else math.min(math.max(0,avgProgress), 1).toFloat)
-
     }
     lastProgress._2
   }
