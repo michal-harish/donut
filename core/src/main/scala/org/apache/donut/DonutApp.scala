@@ -36,10 +36,10 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
 
   val taskClass: Class[T] = t.runtimeClass.asInstanceOf[Class[T]]
   val kafkaUtils: KafkaUtils = new KafkaUtils(config)
-  val topics = config.getProperty("kafka.topics").split(",").toSeq
-  val groupId = config.getProperty("kafka.group.id")
-  val taskMemoryMb: Int = config.getProperty("donut.task.memory.mb", "1024").toInt
-  val taskPriority: Int = config.getProperty("donut.task.priority", "0").toInt
+  val topics = config.getProperty("topics").split(",").toSeq
+  val groupId = config.getProperty("group.id")
+  val taskMemoryMb: Int = config.getProperty("task.memory.mb", "1024").toInt
+  val taskPriority: Int = config.getProperty("task.priority", "0").toInt
   val updateFrequencyMs = TimeUnit.SECONDS.toMillis(30)
 
   private var numLogicalPartitions = -1

@@ -89,10 +89,11 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
   }
 
   final override def run: Unit = {
-    log.info(s"Starting Task for logical partition ${logicalPartition}/${totalLogicalPartitions} of topics ")
+    log.info(s"Starting Task for logical partition ${logicalPartition}/${totalLogicalPartitions} of topics ${topics}")
     val fetchers = partitionsToConsume.flatMap {
       case (topic, partitions) => partitions.map(partition => {
-        createFetcher(topic, partition, config.getProperty("kafka.group.id"))
+        log.info(s"Initializing fetcher for physical partition ${topic}/$partition in group ${config.getProperty("group.id")}")
+        createFetcher(topic, partition, config.getProperty("group.id"))
       })
     }
     bootSequenceCompleted = bootSequence.size == 0 || checkBootSequenceCompleted

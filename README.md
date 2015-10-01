@@ -45,12 +45,13 @@ Each component of a pipeline has to be configured by at least the following para
 
 paramter                 | default       | description
 -------------------------|---------------|------------------------------------------------------------------------------
-*donut.task.memory.mb*   | 1024          | Memory to allocate for each processing unit in YARN context
-*donut.task.priority*    | 0             | Memory to allocate for each processing unit in YARN context [0-10]
+**group.id**             | -             | Consumer group for the total set of all kafka partitions
+**topics**               | -             | Coma-separated list of kafka topics to subscribe to
+**cogroup**              | false         | If set to `false` the number of logical partitions is defined by the topic with the highest number of partitions. If set to `true` the number of logical partitions will be the Highest Common Factor of the number of partitions in each subscribed topic.  
+**max.tasks**            | -             | If set, maximum number of logical partitions - applies also in cogrouped mode 
+**task.memory.mb**       | 1024          | Memory to allocate for each processing unit in YARN context
+**task.priority**        | 0             | Memory to allocate for each processing unit in YARN context [0-10]
 **kafka.brokers**        | -             | Coma-separated list of kafka broker addresses 
-**kafka.group.id**       | -             | Consumer group for the total set of all kafka partitions
-**kafka.topics**         | -             | Coma-separated list of kafka topics to subscribe to
-**kafka.cogroup**        | false         | If set to `false` the number of logical partitions is defined by the topic with the highest number of partitions. If set to `true` the number of logical partitions will be the Highest Common Factor of the number of partitions in each subscribed topic.  
 *yarn1.keepContainers*   | `false`       | If set to `true` any failed container will be automatically restarted.
 *yarn1.site*             | `/etc/hadoop` | Local path where the application is launched pointing to yarn (and hdfs-hadoop configuration) files. This path should contain at least these files: `yarn-site.xml`, `hdfs-site.xml`, `core-site.xml`
 *yarn1.queue*            | -             | YARN scheduling queue name

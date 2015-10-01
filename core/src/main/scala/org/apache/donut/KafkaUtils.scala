@@ -47,15 +47,16 @@ case class KafkaUtils(val config: Properties) {
   })
 
   def getNumLogicalPartitions(topics: Seq[String]): Int = {
-    val cogroup = config.getProperty("kafka.cogroup", "false").toBoolean
+    val cogroup = config.getProperty("cogroup", "false").toBoolean
     val topicParts = getPartitionMap(topics)
     val maxParts = topicParts.map(_._2).max
+    val maxTasks = math.min(maxParts, config.getProperty("max.tasks", maxParts.toString).toInt)
     val result = if (cogroup) {
-      (1 to maxParts).reverse.filter(potentialHCF => {
+      (1 to maxTasks).reverse.filter(potentialHCF => {
         topicParts.forall { case (topic, numPartitions) => numPartitions % potentialHCF == 0 }
       }).max
     } else {
-      maxParts
+      maxTasks
     }
     log.info(s"numLogicalPartitions (cogroup = ${cogroup}})(${topicParts.mkString(",")}}) = " + result)
     return result
