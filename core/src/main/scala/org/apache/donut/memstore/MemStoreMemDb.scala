@@ -18,6 +18,7 @@ package org.apache.donut.memstore
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import java.util.concurrent.TimeUnit
 import org.mapdb._
 
 class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
@@ -30,7 +31,7 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
 
   private val map: HTreeMap[Array[Byte], Array[Byte]] = db.hashMapCreate("DonutLocalStore")
     .expireStoreSize(maxSizeInMb.toDouble / 1024)
-    //.expireMaxSize(maxItems) //FIXME MapDB doesn't seem to honour this setting
+    .expireAfterAccess(3, TimeUnit.DAYS)// TODO this doesn't really work after bootstrap but then the store size should kick in
     .counterEnable()
     .keySerializer(Serializer.BYTE_ARRAY)
     .valueSerializer(Serializer.BYTE_ARRAY)
@@ -57,17 +58,11 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
   }
 
   override def get(key: Array[Byte]): Option[Array[Byte]] = {
-    val value = map.remove(key)
+    val value = map.get(key)
     value match {
       case null => None
-      case v: Array[Byte] if (v.length == 0) => {
-        map.put(key, EVICTED)
-        Some(null)
-      }
-      case v => {
-        map.put(key, v)
-        Some(value)
-      }
+      case v: Array[Byte] if (v.length == 0) => Some(null)
+      case v => Some(v)
     }
   }
 

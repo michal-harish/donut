@@ -1,4 +1,4 @@
-package org.apache.donut
+package org.apache.donut.memstore
 
 /**
  * Donut - Recursive Stream Processing Framework
@@ -20,7 +20,6 @@ package org.apache.donut
 
 import java.nio.ByteBuffer
 
-import org.apache.donut.memstore.{MemStoreMemDb, MemStoreDumb, MemStore}
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
