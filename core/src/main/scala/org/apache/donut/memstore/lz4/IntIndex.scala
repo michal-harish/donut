@@ -4,8 +4,10 @@ import java.nio.ByteBuffer
 
 /**
  * Created by mharis on 01/10/15.
+ *
+ * Non-Thread-Safe structure for Int-to-Int index
  */
-final class IntIndex(val growBlockSize: Int = 1024) {
+final class IntIndex(val growBlockSize: Int) {
   private var data: ByteBuffer = null
 
   private def grow(newSize: Int) {
@@ -13,9 +15,8 @@ final class IntIndex(val growBlockSize: Int = 1024) {
     val newData = ByteBuffer.allocateDirect(roundedNewSize)
     if (data != null) {
       for (i <- (0 to data.capacity-1)) {
-        newData.put(i, data.get(i))
+        newData.put(data.get(i))
       }
-      newData.position(data.position)
     }
     data = newData
   }

@@ -7,6 +7,10 @@ import java.nio.ByteBuffer
  *
  */
 
+trait Compaction {
+  def compact: Boolean
+}
+
 trait Segment {
 
   def capacityInBytes: Int
@@ -46,12 +50,10 @@ trait Segment {
 
   /**
    * @param block
-   * @param buffer may be null in which case the implementation may allocate a new ByteBuffer
+   * @param buffer may be null in which case the implementation may allocate a new ByteBuffer if it uses compression etc.
    * @return
    */
-  def get(block: Int, buffer: ByteBuffer = null): ByteBuffer
-
-  def compact: Unit
+  def get[X](block: Int, decoder: (ByteBuffer => X), buffer: ByteBuffer = null): X
 
   def count: Int
 
