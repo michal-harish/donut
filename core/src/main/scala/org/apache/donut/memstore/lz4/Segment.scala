@@ -7,21 +7,27 @@ import java.nio.ByteBuffer
  *
  */
 
-trait Compaction {
-  def compact: Boolean
-}
-
 trait Segment {
 
   def capacityInBytes: Int
 
   def sizeInBytes: Int
 
+  def count: Int
+
+  def compact: Boolean
+
   /**
-   * Proportion as percentage of how much of the memory has been saved by compression
+   * @param block
+   * @return wrapped length of the block as stored in the memory
+   */
+  def sizeOf(block: Int): Int
+
+  /**
+   * Percentage of compressed data compared to its uncompressed size
    * @return
    */
-  def compressRatio: Int = -1
+  def compressRatio: Double = 100.0
 
   /**
    * Appends a block and returns it's index in the segment's block storage.
@@ -36,14 +42,6 @@ trait Segment {
   def put(block: ByteBuffer, position: Int = -1): Int
 
   /**
-   * Same as put but the source is another block from the source segment
-   * @param src
-   * @param block
-   * @return integer index of the element's position in the segment's memory or -1 if it was not possible to append
-   */
-  def copy(src: Segment, block: Int): Int
-
-  /**
    * Delete or mark for deletion the given position
    */
   def remove(position: Int) : Unit
@@ -55,6 +53,25 @@ trait Segment {
    */
   def get[X](block: Int, decoder: (ByteBuffer => X), buffer: ByteBuffer = null): X
 
-  def count: Int
+  /**
+   * Allocates a new block of storage
+   * Warning: this method can cause memory leak if the block is not consumed and index properly outside the segment
+   * @param length num bytes to allocate
+   * @return index of the newly allocated block
+   */
+  def alloc(length: Int): Int
+
+  /**
+   * Copies content of another block form source segment - the desBlock must be allocated by alloc(..)
+   * @return integer index of the element's position in the segment's memory or -1 if it was not possible to append
+   */
+  def copy(src: Segment, srcBlock: Int, dstBlock: Int = -1): Int
+
+  /**
+   * Sets the content of a block that was allocated using alloc(...)
+   * @param block
+   * @param value
+   */
+  def set(block: Int, value: ByteBuffer)
 
 }

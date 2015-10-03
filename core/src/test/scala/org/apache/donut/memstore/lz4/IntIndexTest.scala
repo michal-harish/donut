@@ -8,19 +8,19 @@ import org.scalatest.Matchers
  */
 class IntIndexTest extends FlatSpec with Matchers {
 
-  val index = new IntIndex(64)
+  val index = new IntIndex(65)
 
   index.capacityInBytes should be (0)
 
   (0 to 15).foreach(i => {
     index.put(1) should be (i)
-    index.capacityInBytes should be(64)
+    index.capacityInBytes should be(65)
     index.get(i) should be(1)
   })
 
   (16 to 31).foreach(i => {
     index.put(2) should be (i)
-    index.capacityInBytes should be(128)
+    index.capacityInBytes should be(130)
     index.get(i) should be(2)
   })
 
