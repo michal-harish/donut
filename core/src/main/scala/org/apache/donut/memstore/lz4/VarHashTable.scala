@@ -10,8 +10,8 @@ import scala.collection.JavaConverters._
  *
  * Not Thread-Safe
  */
-class VarHashTable(val initialCapacityKb: Int) {
-  //TODO [X] -> (Boolean, Short, Integer)
+class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
+  //TODO [K,V] -> (Boolean, Short, Integer)
   val cube = new util.HashMap[Int, GrowableHashTable]
 
   def sizeInBytes: Long = cube.values.asScala.map(_.sizeInBytes).sum
@@ -26,7 +26,7 @@ class VarHashTable(val initialCapacityKb: Int) {
     val keyLen = key.remaining
     cube.get(keyLen) match {
       case null => synchronized {
-        val hashTable = new GrowableHashTable(keyLen, initialCapacityKb)
+        val hashTable = new GrowableHashTable(keyLen, initialCapacityKb, loadFactor)
         cube.put(keyLen, hashTable)
         hashTable
       }
@@ -34,13 +34,13 @@ class VarHashTable(val initialCapacityKb: Int) {
     }
   }
 
-  final class GrowableHashTable(val keyLen: Int, val initialCapacityKb: Int) {
+  final class GrowableHashTable(val keyLen: Int, val initialCapacityKb: Int, val loadFactor: Double) {
 
     def sizeInBytes: Long = data.capacity
 
     private val INITIAL_CAPACITY = initialCapacityKb * 1024
 
-    private val MAX_NUM_COLLISIONS = 32
+    private var maxCollisions = 0
 
     private val rowLen = keyLen + 7 // 1 byte for inTransit flag, 2 bytes for segment, 4 bytes for memory pointer
 
@@ -48,9 +48,9 @@ class VarHashTable(val initialCapacityKb: Int) {
 
     private var size = 0 // number of positions
 
-    private var loadFactor = 0 //number of used positions
+    private var loaded = 0 //number of used positions
 
-    def load: Double = loadFactor.toDouble / size * 100.00
+    def load: Double = loaded.toDouble / size
 
     grow
 
@@ -61,7 +61,7 @@ class VarHashTable(val initialCapacityKb: Int) {
       }
       var hash = getHash(hashCode)
       var numCollisions = 0
-      while (numCollisions <= MAX_NUM_COLLISIONS) {
+      while (numCollisions <= maxCollisions) {
         val hashPos = hash * rowLen
         val inspectHashCode = data.getInt(hashPos)
         if (inspectHashCode == 0) {
@@ -74,7 +74,7 @@ class VarHashTable(val initialCapacityKb: Int) {
             )
         }
         hash = resolveCollision(hash)
-        numCollisions+=1
+        numCollisions += 1
       }
       null
     }
@@ -86,34 +86,33 @@ class VarHashTable(val initialCapacityKb: Int) {
       if (hashCode == 0) {
         throw new IllegalArgumentException
       }
-      var grown = false
+      var hash = getHash(hashCode)
+      var numCollisions = 0
       while (true) {
-        var hash = getHash(hashCode)
-        var numCollisions = 0
-        while (numCollisions <= MAX_NUM_COLLISIONS) {
-          val hashPos = hash * rowLen
-          val inspectHashCode = data.getInt(hashPos)
-          if (inspectHashCode == 0 || (inspectHashCode == hashCode && keyEquals(hashPos, key))) {
-            var i = 0
-            while (i < keyLen) {
-              data.put(hashPos + i, key.get(key.position + i))
-              i += 1
-            }
-            data.put(hashPos + keyLen, if (value._1) 1 else 0)
-            data.putShort(hashPos + keyLen + 1, value._2)
-            data.putInt(hashPos + keyLen + 3, value._3)
-            loadFactor += 1
-            return true
+        val hashPos = hash * rowLen
+        val inspectHashCode = data.getInt(hashPos)
+        if (inspectHashCode == 0 || (inspectHashCode == hashCode && keyEquals(hashPos, key))) {
+          var i = 0
+          while (i < keyLen) {
+            data.put(hashPos + i, key.get(key.position + i))
+            i += 1
           }
-          hash = resolveCollision(hash)
-          numCollisions += 1
+          data.put(hashPos + keyLen, if (value._1) 1 else 0)
+          data.putShort(hashPos + keyLen + 1, value._2)
+          data.putInt(hashPos + keyLen + 3, value._3)
+          loaded += 1
+          return true
         }
-        if (!growable) {
-          return false
-        } else if (grown) {
+        hash = resolveCollision(hash)
+        numCollisions += 1
+        if (numCollisions > maxCollisions) maxCollisions = numCollisions
+        if (growable && load > loadFactor) {
+          grow
+          numCollisions = 0
+          hash = getHash(hashCode)
+        } else if (load >= 1.0) {
           throw new IllegalArgumentException(s"Could not resolve hash table collision, load ${load} % ")
         }
-        grown = grow
       }
       false
     }
@@ -146,7 +145,7 @@ class VarHashTable(val initialCapacityKb: Int) {
       true
     }
 
-    private def grow: Boolean = {
+    private def grow = {
       val oldData = data
       var capacity = if (data == null) INITIAL_CAPACITY / 2 else oldData.capacity
       var success = true
@@ -154,7 +153,8 @@ class VarHashTable(val initialCapacityKb: Int) {
         capacity = (capacity * 2).toInt / rowLen * rowLen
         data = ByteBuffer.allocateDirect(capacity)
         size = capacity / rowLen
-        loadFactor = 0
+        loaded = 0
+        maxCollisions = 0
         if (oldData != null && oldData.capacity > 0) {
           var c = 0
           while (c < oldData.capacity) {

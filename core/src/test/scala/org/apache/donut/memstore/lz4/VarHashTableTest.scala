@@ -1,17 +1,15 @@
 package org.apache.donut.memstore.lz4
 
 import java.nio.ByteBuffer
-import java.security.MessageDigest
 import java.util
 
+import org.apache.donut.ByteUtils
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
  * Created by mharis on 04/10/15.
  */
 class VarHashTableTest extends FlatSpec with Matchers {
-
-  val digest = MessageDigest.getInstance("MD5")
 
   val range = (10000 to 99999)
 
@@ -60,9 +58,11 @@ class VarHashTableTest extends FlatSpec with Matchers {
   }
 
   def genKey(k: Int): ByteBuffer = {
-    val d = digest.digest(k.toString.getBytes)
-    //println(s"${k} -> hashCode = ${ByteUtils.asIntValue(d)}")
-    ByteBuffer.wrap(d)
+    val key = k.toString
+    val b = new Array[Byte](key.length + 4)
+    ByteUtils.putIntValue(key.hashCode, b, 0)
+    ByteUtils.copy(key.getBytes, 0, b, 4, key.length)
+    ByteBuffer.wrap(b)
   }
 
 }
