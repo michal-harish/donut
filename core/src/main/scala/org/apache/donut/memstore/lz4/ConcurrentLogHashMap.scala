@@ -15,20 +15,9 @@ class ConcurrentLogHashMap(val maxSegmentSizeMb: Int, val compressMinBlockSize: 
 
   private[lz4] val catalog = new Catalog(maxSegmentSizeMb, compressMinBlockSize)
 
-  /* TODO index should be off-heap
-   * e.g.
-   * class ByteArrayIndex {
-   *  val hashTable = new IntIndex pointing to the first element
-   *  val data = new GrowableByteBuffer(growSize = 4096)
-   *  hashTable(hash) ->
-   *  first: [next] [len1][bytes(len1)]
-   *  ...
-   *  next:  [next_][len1][bytes(len1)]
-   *  .....
-   *  next_: [0000] [len1][bytes(len1)]
-   *
-   * }
-  */
+  // TODO index should be off-heap private
+  //val index2 = new VarHashTable(initialCapacityKb = 64)
+
   private val index = new util.HashMap[ByteBuffer, IndexValue]
   private val indexLock = new ReentrantReadWriteLock
   private val indexReader = indexLock.readLock
