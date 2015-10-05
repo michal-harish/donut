@@ -1,4 +1,4 @@
-package org.apache.donut.memstore.lz4
+package org.apache.donut.memstore.log
 
 import java.nio.ByteBuffer
 
@@ -15,6 +15,8 @@ class GrowableByteBuffer(val growBlockSize: Int) {
   def size: Int = if (data == null) 0 else data.position
 
   def available: Int = if (data == null) 0 else data.capacity - data.position
+
+  def clear = data.clear
 
   /**
    * @param offset
@@ -44,7 +46,6 @@ class GrowableByteBuffer(val growBlockSize: Int) {
   private def grow {
     val newSize = capacity + growBlockSize
     val roundedNewSize = math.ceil(newSize.toDouble / growBlockSize).toInt * growBlockSize
-
     val newData = ByteBuffer.allocateDirect(roundedNewSize)
     if (data != null) {
       var i = 0

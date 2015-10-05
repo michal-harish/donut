@@ -1,4 +1,4 @@
-package org.apache.donut.memstore.lz4
+package org.apache.donut.memstore.log
 
 import java.nio.ByteBuffer
 import java.util
@@ -29,7 +29,8 @@ class VarHashTableTest extends FlatSpec with Matchers {
     val putMs = put((key, sp) => h.put(key, sp), (key) => h.get(key))
     println(s"VarHashTable.put = ${putMs}ms")
     println(s"VarHashTable.get = ${get((key) => h.get(key))} ms")
-    println(s"VarHashTable ${h.sizeInBytes / 1024 / 1024} Mb, load ${h.load} %\n")
+    println(s"VarHashTable ${h.sizeInBytes / 1024 / 1024} Mb, load ${h.load}\n")
+    h.load should be <= 0.7
 
   }
 

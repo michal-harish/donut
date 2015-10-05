@@ -1,4 +1,4 @@
-package org.apache.donut.memstore.lz4
+package org.apache.donut.memstore.log
 
 import java.nio.ByteBuffer
 
@@ -27,7 +27,7 @@ trait Segment {
    * Percentage of compressed data compared to its uncompressed size
    * @return
    */
-  def compressRatio: Double = 100.0
+  def compressRatio: Double = 1.0
 
   /**
    * Appends a block and returns it's index in the segment's block storage.
@@ -48,10 +48,12 @@ trait Segment {
 
   /**
    * @param block
-   * @param buffer may be null in which case the implementation may allocate a new ByteBuffer if it uses compression etc.
+   * @param decoder
    * @return
    */
-  def get[X](block: Int, decoder: (ByteBuffer => X), buffer: ByteBuffer = null): X
+  def get[X](block: Int, decoder: (ByteBuffer => X)): X
+
+  def get(block: Int): ByteBuffer = get(block, (b:ByteBuffer) => b)
 
   /**
    * Allocates a new block of storage

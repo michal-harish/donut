@@ -1,4 +1,4 @@
-package org.apache.donut.memstore.lz4
+package org.apache.donut.memstore.log
 
 /**
  * Created by mharis on 01/10/15.
@@ -21,5 +21,6 @@ final class IntIndex(val growBlockSize: Int) {
 
   def get(position: Int): Int = data.getInt(position * 4)
 
+  def clear = data.clear
 
 }

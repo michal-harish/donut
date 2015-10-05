@@ -1,4 +1,4 @@
-package org.apache.donut.memstore.lz4
+package org.apache.donut.memstore.log
 
 import java.nio.ByteBuffer
 import java.util
@@ -11,7 +11,7 @@ import scala.collection.JavaConverters._
  * Not Thread-Safe
  */
 class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
-  //TODO [K,V] -> (Boolean, Short, Integer)
+
   val cube = new util.HashMap[Int, GrowableHashTable]
 
   def sizeInBytes: Long = cube.values.asScala.map(_.sizeInBytes).sum
@@ -21,6 +21,8 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
   def put(key: ByteBuffer, value: (Boolean, Short, Int)) = hashTable(key).put(key, value)
 
   def get(key: ByteBuffer): (Boolean, Short, Int) = hashTable(key).get(key)
+
+  def flag(key: ByteBuffer, flagValue: Boolean) = hashTable(key).flag(key, flagValue)
 
   private def hashTable(key: ByteBuffer): GrowableHashTable = {
     val keyLen = key.remaining
@@ -54,7 +56,7 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
     grow
 
-    def get(key: ByteBuffer): (Boolean, Short, Int) = {
+    private def find(key: ByteBuffer): Int = {
       val hashCode = key.getInt(key.position)
       if (hashCode == 0) {
         throw new IllegalArgumentException
@@ -65,18 +67,56 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
         val hashPos = hash * rowLen
         val inspectHashCode = data.getInt(hashPos)
         if (inspectHashCode == 0) {
-          return null
+          return -1
         } else if (inspectHashCode == hashCode && keyEquals(hashPos, key)) {
+          return hashPos
+        }
+        hash = resolveCollision(hash)
+        numCollisions += 1
+      }
+      -1
+    }
+
+    def get(key: ByteBuffer): (Boolean, Short, Int) = {
+      find(key) match {
+        case -1 => null
+        case hashPos => {
           return (
             data.get(hashPos + keyLen) != 0,
             data.getShort(hashPos + keyLen + 1),
             data.getInt(hashPos + keyLen + 3)
             )
         }
-        hash = resolveCollision(hash)
-        numCollisions += 1
       }
-      null
+//      val hashCode = key.getInt(key.position)
+//      if (hashCode == 0) {
+//        throw new IllegalArgumentException
+//      }
+//      var hash = getHash(hashCode)
+//      var numCollisions = 0
+//      while (numCollisions <= maxCollisions) {
+//        val hashPos = hash * rowLen
+//        val inspectHashCode = data.getInt(hashPos)
+//        if (inspectHashCode == 0) {
+//          return null
+//        } else if (inspectHashCode == hashCode && keyEquals(hashPos, key)) {
+//          return (
+//            data.get(hashPos + keyLen) != 0,
+//            data.getShort(hashPos + keyLen + 1),
+//            data.getInt(hashPos + keyLen + 3)
+//            )
+//        }
+//        hash = resolveCollision(hash)
+//        numCollisions += 1
+//      }
+//      null
+    }
+
+    def flag(key: ByteBuffer, flagValue: Boolean): Unit = {
+      find(key) match {
+        case -1 => throw new ArrayIndexOutOfBoundsException
+        case hashPos => data.put(hashPos + keyLen, if (flagValue) 1 else 0)
+      }
     }
 
     def put(key: ByteBuffer, value: (Boolean, Short, Int)): Unit = put(key, value, true)

@@ -1,4 +1,4 @@
-package org.apache.donut.memstore.lz4
+package org.apache.donut.memstore.log
 
 import java.nio.ByteBuffer
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -11,13 +11,25 @@ import scala.collection.JavaConverters._
  *
  * This is a specialised Thread-Safe HashMap based which may be partially compressed.
  */
-class ConcurrentLogHashMap(val maxSegmentSizeMb: Int, val compressMinBlockSize: Int) {
+class ConcurrentLogHashMap(val segmentSizeMb: Int, val compressMinBlockSize: Int) {
 
-  private[lz4] val catalog = new Catalog(maxSegmentSizeMb, compressMinBlockSize)
+  private[log] val catalog = new Catalog(segmentSizeMb, compressMinBlockSize)
 
-  //  private val index = new util.HashMap[ByteBuffer, (Boolean, Short, Int)] //heap-based index for testing
+  def numSegments = catalog.iterator.size
 
-  private val index = new VarHashTable(initialCapacityKb = 64)
+  def count: Int = catalog.iterator.map(_.count).sum
+
+  def compressRatio: Double = catalog.iterator.map(_.compressRatio).toSeq match {case r => if (r.size == 0) 0 else (r.sum / r.size)}
+
+  def capacity: Long =  catalog.iterator.map(_.capacityInBytes.toLong).sum + index.sizeInBytes
+
+  def sizeInBytes: Long = catalog.iterator.map(_.sizeInBytes.toLong).sum + index.sizeInBytes
+
+  def load: Double = sizeInBytes.toDouble / capacity
+
+  def compact = catalog.compact
+
+  private val index = new VarHashTable(initialCapacityKb = 64, loadFactor = 0.5)
   private val indexLock = new ReentrantReadWriteLock
   private val indexReader = indexLock.readLock
   private val indexWriter = indexLock.writeLock
@@ -45,8 +57,8 @@ class ConcurrentLogHashMap(val maxSegmentSizeMb: Int, val compressMinBlockSize: 
         case null => null.asInstanceOf[X]
         case i: (Boolean, Short, Int) => {
           val indexValue = new IndexValue(i)
-          if (catalog.isInLastSegment(indexValue)) {
-            return catalog.getBlock(indexValue, mapper, null)
+          if (catalog.isInLastSegment(indexValue) || indexValue.inTransit) {
+            return catalog.getBlock(indexValue, mapper)
           } else {
             var oldIndexValue: IndexValue = null
             var newIndexValue: IndexValue = null
@@ -55,13 +67,13 @@ class ConcurrentLogHashMap(val maxSegmentSizeMb: Int, val compressMinBlockSize: 
               try {
                 oldIndexValue = new IndexValue(index.get(key))
                 if (oldIndexValue.inTransit) {
-                  return catalog.getBlock(oldIndexValue, mapper, null)
+                  return catalog.getBlock(oldIndexValue, mapper)
                 }
-                index.put(key, oldIndexValue.setTransit)
+                index.flag(key, true)
                 newIndexValue = catalog.alloc(catalog.sizeOf(oldIndexValue))
               } catch {
                 case e: Throwable => {
-                  if (oldIndexValue != null) index.put(key, oldIndexValue.unsetTransit)
+                  if (oldIndexValue != null) index.flag(key, false)
                   if (newIndexValue != null) catalog.dealloc(newIndexValue)
                   throw e
                 }
@@ -80,7 +92,7 @@ class ConcurrentLogHashMap(val maxSegmentSizeMb: Int, val compressMinBlockSize: 
               indexReader.lock
               indexWriter.unlock
             }
-            catalog.getBlock(newIndexValue, mapper, null)
+            catalog.getBlock(newIndexValue, mapper)
           }
         }
       }
@@ -88,18 +100,6 @@ class ConcurrentLogHashMap(val maxSegmentSizeMb: Int, val compressMinBlockSize: 
       indexReader.unlock
     }
   }
-
-  def numSegments = catalog.safeIterator.size
-
-  def count: Int = catalog.safeIterator.map(_.count).sum
-
-  def compressRatio: Double = catalog.safeIterator.map(_.compressRatio).toSeq match {
-    case rates => if (rates.size == 0) 0 else (rates.sum / rates.size)
-  }
-
-  def sizeInBytes: Long = catalog.safeIterator.map(_.sizeInBytes.toLong).sum + index.sizeInBytes
-
-  def compact = catalog.compact
 
 }
 
@@ -115,36 +115,54 @@ class IndexValue(val segment: Short, val block: Int, val inTransit: Boolean = fa
   def unsetTransit = (false, segment, block)
 }
 
-class Catalog(val maxSegmentSizeMb: Int, val compressMinBlockSize: Int) extends AnyRef {
+class Catalog(val segmentSizeMb: Int, val compressMinBlockSize: Int) extends AnyRef {
 
-  //TODO run compaction in the background : 1) closing full segments 2) remove empty segments
+  //TODO configuration for VarHashTable index so that we do not grow it pointlessly if we know how big it's going to get
+
+  //TODO run compaction in the background
 
   private val segments = new java.util.LinkedList[Segment]()
 
-  forceNewSegment
+  @volatile private var currentSegment: Short = - 1
+
+  createNewSegment
 
   /**
-   * @param iv
-   * @return true if the index value is in transit to the latest semgnet or it already is int that segment
+   * @param i
+   * @return true if the index value belongs to the latest segment
    */
-  def isInLastSegment(iv: (Boolean, Short, Int)): Boolean = iv._1 || (segments.size - 1).toShort == iv._2
+  def isInLastSegment(i: (Boolean, Short, Int)): Boolean = i._2 == currentSegment
 
-  //TODO this iterator is not really safe yet - just a placeholder method
-  def safeIterator = segments.iterator.asScala
+  def iterator: Iterator[Segment] = segments.synchronized(segments.iterator.asScala.toList).iterator
 
-  //this is for testing only
-  def forceNewSegment = segments.synchronized(segments.add(createNewSegment))
+  def sizeOf(i: (Boolean, Short, Int)): Int = segments.get(i._2).sizeOf(i._3)
 
-
-  def sizeOf(i: IndexValue): Int = segments.get(i.segment).sizeOf(i.block)
-
-  def getBlock[X](i: IndexValue, mapper: ByteBuffer => X, buffer: ByteBuffer): X = {
-    segments.get(i.segment).get(i.block, mapper, buffer)
+  def getBlock[X](i: (Boolean, Short, Int), mapper: ByteBuffer => X): X = {
+    segments.get(i._2).get(i._3, mapper)
   }
-  
+
   def removeBlock(coord: (Boolean, Short, Int)) = segments.get(coord._2).remove(coord._3)
 
-  private def createNewSegment = new SegmentDirectMemoryLZ4(maxSegmentSizeMb, compressMinBlockSize)
+  private[log] def createNewSegment: Short = segments.synchronized {
+    for(s <- 0 to segments.size-1) {
+      if (segments.get(s).count == 0) { //reuse segment that was compacted-out
+        currentSegment = s.toShort
+        return currentSegment
+      }
+    }
+    segments.add(new SegmentDirectMemoryLZ4(segmentSizeMb, compressMinBlockSize))
+    currentSegment = (segments.size - 1).toShort
+    return currentSegment
+  }
+
+  def compact = {
+    var i = segments.size - 1
+    while (i >= 0) {
+      val segment = segments.get(i)
+      segment.compact
+      i -= 1
+    }
+  }
 
   /**
    * Warning: This is a dangerous method that can lead to memory leak if not used properly.
@@ -152,21 +170,18 @@ class Catalog(val maxSegmentSizeMb: Int, val compressMinBlockSize: Int) extends 
    * @return
    */
   def alloc(wrappedLength: Int): IndexValue = {
-    (segments.size - 1).toShort match {
+    currentSegment match {
       case current: Short => segments.get(current).alloc(wrappedLength) match {
         case newBlock if (newBlock >= 0) => new IndexValue(current, newBlock)
         case _ => segments.synchronized {
-          (segments.size - 1).toShort match {
+          currentSegment match {
             case currentChecked => segments.get(currentChecked).alloc(wrappedLength) match {
               case newBlock if (newBlock >= 0) => new IndexValue(currentChecked, newBlock)
               case _ => {
                 val newSegment = createNewSegment
-                newSegment.alloc(wrappedLength) match {
-                  case -1 => throw new IllegalArgumentException("Value is bigger than segment size " + newSegment.capacityMb + " Mb")
-                  case newBlock => {
-                    segments.add(newSegment)
-                    new IndexValue((segments.size - 1).toShort, newBlock)
-                  }
+                segments.get(newSegment).alloc(wrappedLength) match {
+                  case -1 => throw new IllegalArgumentException(s"Value of length `${wrappedLength}` is bigger than segment size " + segmentSizeMb + " Mb")
+                  case newBlock => new IndexValue(newSegment, newBlock)
                 }
               }
             }
@@ -201,21 +216,18 @@ class Catalog(val maxSegmentSizeMb: Int, val compressMinBlockSize: Int) extends 
       }
       newIndexValue
     } else {
-      (segments.size - 1).toShort match {
+      currentSegment match {
         case current: Short => segments.get(current).put(value) match {
           case newBlock if (newBlock >= 0) => new IndexValue(current, newBlock)
           case _ => segments.synchronized {
-            (segments.size - 1).toShort match {
+            currentSegment match {
               case currentChecked => segments.get(currentChecked).put(value) match {
                 case newBlock if (newBlock >= 0) => new IndexValue(currentChecked, newBlock)
                 case _ => {
                   val newSegment = createNewSegment
-                  newSegment.put(value) match {
-                    case -1 => throw new IllegalArgumentException("Value is bigger than segment size " + newSegment.capacityMb + " Mb")
-                    case newBlock => {
-                      segments.add(newSegment)
-                      new IndexValue((segments.size -1).toShort, newBlock)
-                    }
+                  segments.get(newSegment).put(value) match {
+                    case -1 => throw new IllegalArgumentException("Value is bigger than segment size " + segmentSizeMb + " Mb")
+                    case newBlock => new IndexValue(newSegment, newBlock)
                   }
                 }
               }
@@ -226,17 +238,6 @@ class Catalog(val maxSegmentSizeMb: Int, val compressMinBlockSize: Int) extends 
     }
   }
 
-  def compact = {
-    var i = segments.size - 1
-    while (i >= 0) {
-      val segment = segments.get(i)
-      segment.compact
-      if (segment.count == 0) {
-        //TODO reuse segment
-      }
-      i -= 1
-    }
-  }
 
 }
 

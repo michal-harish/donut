@@ -1,4 +1,4 @@
-package org.apache.donut.memstore.lz4
+package org.apache.donut.memstore.log
 
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
