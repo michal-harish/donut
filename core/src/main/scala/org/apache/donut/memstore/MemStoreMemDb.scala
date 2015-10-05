@@ -33,7 +33,6 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
 
   private val map: HTreeMap[Array[Byte], Array[Byte]] = db.hashMapCreate("DonutLocalStore")
     .expireStoreSize(maxSizeInMb.toDouble / 1024)
-    .expireAfterAccess(3, TimeUnit.DAYS) // TODO this doesn't really work after bootstrap but then the store size should kick in
     .counterEnable()
     .keySerializer(Serializer.BYTE_ARRAY)
     .valueSerializer(Serializer.BYTE_ARRAY)
@@ -43,7 +42,7 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
 
   override def size: Long = map.sizeLong
 
-  override def minSizeInBytes: Long = store.getCurrSize // bug in MapDB FreeSize and CurrSize are swapped
+  override def sizeInBytes: Long = store.getCurrSize // bug in MapDB FreeSize and CurrSize are swapped
 
   override def contains(key: ByteBuffer) = {
     map.containsKey(ByteUtils.bufToArray(key))

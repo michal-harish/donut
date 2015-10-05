@@ -13,11 +13,11 @@ class MemStoreLogMap(val maxSizeInMb: Int) extends MemStore {
 
   override def size: Long = map.size
 
-  override def minSizeInBytes: Long = map.currentSizeInBytes
+  override def sizeInBytes: Long = map.currentSizeInBytes
+
+  override def compressRatio: Double = map.compressRatio
 
   override def contains(key: ByteBuffer): Boolean = map.contains(key)
-
-  override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = map.iterator
 
   override def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X): Option[X] = {
     map.get(key, mapper) match {
@@ -31,5 +31,6 @@ class MemStoreLogMap(val maxSizeInMb: Int) extends MemStore {
 
   override def put(key: ByteBuffer, value: ByteBuffer): Unit = map.put(key, value)
 
-  override def compressRatio: Double = map.compressRatio
+  override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = map.iterator
+
 }

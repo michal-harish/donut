@@ -51,9 +51,9 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def getBlock[X](p: COORD, mapper: ByteBuffer => X): X = segments.get(p._2).get(p._3, mapper)
 
-  def removeBlock(coord: COORD) = segments.get(coord._2).remove(coord._3)
+  def markForDeletion(coord: COORD) = segments.get(coord._2).remove(coord._3)
 
-  def dropFirstSegments(nSegmentsToRemove: Int): Unit = if (nSegmentsToRemove > 0) segments.synchronized {
+  def dropOldestSegments(nSegmentsToRemove: Int): Unit = if (nSegmentsToRemove > 0) segments.synchronized {
     for(s <- 1 to nSegmentsToRemove) segments.removeFirst
   }
 

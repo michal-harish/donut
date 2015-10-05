@@ -25,22 +25,35 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  * Created by mharis on 01/10/15.
  *
  * This is a specialised Thread-Safe HashMap based on in-memory block-storage which may be partially compressed either
- * on a per-entry basis or per-segment basis. Its most important feature is that each time an entry is accessed
- * it is propagated to the latest segments eventually leaving some segments empty which are then recycled without
- * any memory re-allocation or, depending on configuration, the older segments are compressed as they `age`.
+ * a per-entry basis by given minimum block size which triggers compression for each value separately (SegmentDirectMemoryLZ4)
+ * or at the time of compaction when segments not accessed recently can be first compressed instead of removed.
  *
- * Both it's hash table and value collections are implemented in this package and are based on direct memory buffers
- * which allows for zero-copy accesss although application must take some extra steps to ensure zero-copy. Direct
- * memory buffers also allow for precise control and statistics about it's capacity and load factor.
+ * It has a hash table index and a list of segments. Both of these its internal structures are implemented in this
+ * package and are based on direct memory buffers which allows for zero-copy access although application must take
+ * some extra steps to ensure zero-copy. Direct memory buffers also allow for precise and cheap statistics about
+ * it's capacity, load factor and actual compression rate.
  *
+ * Each segments is a single pre-allocated block of memory which shrinks over time as the entries are popped to the
+ * top segment every time they are accessed. This leads to segments slowly evaporating except for the top one.
  *
- * TODO: At the moment it is fixed to ByteBuffer keys and values but it should be possible to
- * TODO  generalise into ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
+ * Every attempt to allocate a new memory segment is tracked and triggers compaction if the total memory needed
+ * would exceed than number of megabytes defined in the constructor of the map.
+ *
+ * During compaction several things may happen. Firstly each segment is compacted without re-allocation removing
+ * values that were marked for deletion by entries leaving for the top segment, decreasing actual load factor.
+ * Entries that are not accessed for longer and longer remain as sediment in smaller segments so compaction will
+ * remember each whose actual load factor falls below 0.5. Those will be added together creating a fossil segment.
+ * The segments that are filled with data that is not being accessed for long period of time may be either first
+ * compressed and wait for removal due to limit on the overall memory allocated for the program,
+ * or removed directly depending on the character of the data it is being used for.
+ *
  */
 
 class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
 
-  //TODO run compact(0) in the background
+  //TODO split compaction into asynchronous part for internal segment compaction and synchronous for merging and recycling segments
+  //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
+  //FIXME def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need to implement the underlying hashtable iterators with logical offset instead of hashPos and validate against the index here
 
   val maxSizeInBytes = maxSizeInMb * 1024 * 1024
 
@@ -79,9 +92,24 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
     }
   }
 
-  final def get(key: ByteBuffer): ByteBuffer = get(key, (b: ByteBuffer) => b)
-
   final def iterator: Iterator[(ByteBuffer, ByteBuffer)] = iterator(b => b)
+
+  def iterator[X](mapper: (ByteBuffer) => X): Iterator[(ByteBuffer, X)] = {
+    indexReader.lock
+    try {
+      val it = index.iterator
+      new Iterator[(ByteBuffer, X)] {
+        override def hasNext: Boolean = it.hasNext
+
+        override def next(): (ByteBuffer, X) = {
+          val (key: ByteBuffer, p: COORD) = it.next
+          (key, catalog.getBlock(p, mapper))
+        }
+      }
+    } finally {
+      indexReader.unlock
+    }
+  }
 
   def put(key: ByteBuffer, value: ByteBuffer) = {
     val newIndexValue = catalog.append(key, value)
@@ -90,13 +118,15 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
       val previousIndexValue = index.get(key)
       index.put(key, newIndexValue)
       if (previousIndexValue != null) {
-        catalog.removeBlock(previousIndexValue)
+        catalog.markForDeletion(previousIndexValue)
       }
     } finally {
       indexWriter.unlock
     }
   }
 
+  final def get(key: ByteBuffer): ByteBuffer = get(key, (b: ByteBuffer) => b)
+  
   def get[X](key: ByteBuffer, mapper: (ByteBuffer => X)): X = {
     def inTransit(i: COORD) = i._1
 
@@ -149,24 +179,6 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
     }
   }
 
-  def iterator[X](mapper: (ByteBuffer) => X): Iterator[(ByteBuffer, X)] = {
-    indexReader.lock
-    try {
-      //FIXME this iterator is not safe as it unlocks the indexReader after instantiation so we need to implement the underlying hashtable iterators with logical offset instead of hashPos so it behaves like ConcurrentHashMap interator
-      val it = index.iterator
-      new Iterator[(ByteBuffer, X)] {
-        override def hasNext: Boolean = it.hasNext
-
-        override def next(): (ByteBuffer, X) = {
-          val (key: ByteBuffer, p: COORD) = it.next
-          (key, catalog.getBlock(p, mapper))
-        }
-      }
-    } finally {
-      indexReader.unlock
-    }
-  }
-
   def compact(makeAvailableNumBytes: Int): Unit = {
     catalog.compact
     if (currentSizeInBytes + makeAvailableNumBytes > maxSizeInBytes) {
@@ -188,7 +200,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
               case segment => (v._1, (segment - nSegmentsToRemove).toShort, v._3)
             }
           })
-          catalog.dropFirstSegments(nSegmentsToRemove)
+          catalog.dropOldestSegments(nSegmentsToRemove)
         }
       } finally {
         indexWriter.unlock

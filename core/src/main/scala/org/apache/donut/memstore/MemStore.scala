@@ -21,16 +21,16 @@ package org.apache.donut.memstore
 import java.nio.ByteBuffer
 
 /**
- * All implementation of LocalStorage must:
- * 1) Allow concurrent writes
- * 2) support nulls values
- * 3) Honor expiration limits they expose within 1 second
+ * All implementation of the MemStore must:
+ *    1. Allow concurrent writes
+ *    2. support nulls values
+ *    3) Honor expiration limits they expose within 1 second
  */
 abstract class MemStore {
 
   def size: Long
 
-  def minSizeInBytes: Long
+  def sizeInBytes: Long
 
   def compressRatio: Double
 
@@ -40,8 +40,8 @@ abstract class MemStore {
 
   def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X) : Option[X]
 
-  def iterator: Iterator[(ByteBuffer, ByteBuffer)]
-
   def put(key: ByteBuffer, value: ByteBuffer): Unit
+
+  def iterator: Iterator[(ByteBuffer, ByteBuffer)]
 
 }
