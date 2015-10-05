@@ -54,15 +54,15 @@ class SegmentTest extends FlatSpec with Matchers {
 
     segment.remove(0)
 
-    segment.get(0) should be(null)
+    an [ArrayIndexOutOfBoundsException] should be thrownBy(segment.get(0))
 
-    segment.sizeInBytes should be > (10000)
+    segment.sizeInBytes should be (0)
 
-    segment.compressRatio should be < (0.7)
+    segment.compressRatio should be (1.0)
 
     segment.compact
 
-    segment.sizeInBytes should be < (100)
+    segment.sizeInBytes should be (0)
 
     segment.compressRatio should be(1.0)
   }
