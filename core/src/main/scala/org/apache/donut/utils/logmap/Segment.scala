@@ -1,9 +1,31 @@
-package org.apache.donut.memstore.log
+/**
+ * Donut - Recursive Stream Processing Framework
+ * Copyright (C) 2015 Michal Harish
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package org.apache.donut.utils.logmap
 
 import java.nio.ByteBuffer
 
 /**
  * Created by mharis on 01/10/15.
+ *
+ * Segment is a memory-allocation unit of the log memestore.
+ *
+ * All implementations of Segment must be Thread-Safe
  *
  */
 
@@ -13,13 +35,16 @@ trait Segment {
 
   def sizeInBytes: Int
 
-  def count: Int
-
   def compact: Boolean
 
   /**
+   * @return number of elements in the segment
+   */
+  def size: Int
+
+  /**
    * @param block
-   * @return wrapped length of the block as stored in the memory
+   * @return wrapped length of the block as stored in the memory, in bytes
    */
   def sizeOf(block: Int): Int
 

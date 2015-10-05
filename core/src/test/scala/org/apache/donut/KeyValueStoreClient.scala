@@ -1,5 +1,3 @@
-package org.apache.donut
-
 /**
  * Donut - Recursive Stream Processing Framework
  * Copyright (C) 2015 Michal Harish
@@ -17,6 +15,8 @@ package org.apache.donut
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+package org.apache.donut
 
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{Future, TimeUnit, TimeoutException}

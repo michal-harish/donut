@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 package org.apache.donut.memstore
 
 import java.nio.ByteBuffer
@@ -25,7 +26,7 @@ import java.nio.ByteBuffer
  * 2) support nulls values
  * 3) Honor expiration limits they expose within 1 second
  */
-abstract class MemStore { //[V](serializer: (V) => Array[Byte]) {
+abstract class MemStore {
 
   def size: Long
 
@@ -35,7 +36,13 @@ abstract class MemStore { //[V](serializer: (V) => Array[Byte]) {
 
   def put(key: Array[Byte], value: Array[Byte]): Unit
 
-  def get(key: Array[Byte]): Option[Array[Byte]]
+  //def get(key: Array[Byte]): Option[Array[Byte]]
+
+//  def get(key: ByteBuffer): Option[Array[Byte]] = {
+//    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
+//    get(keyBytes)
+//  }
+  def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X) : X
 
   def remove(key: Array[Byte]): Option[Array[Byte]]
 
@@ -51,12 +58,6 @@ abstract class MemStore { //[V](serializer: (V) => Array[Byte]) {
   def put(key: ByteBuffer, value: Array[Byte]): Unit = {
     val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
     put(keyBytes, value)
-  }
-
-
-  def get(key: ByteBuffer): Option[Array[Byte]] = {
-    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
-    get(keyBytes)
   }
 
   def contains(key: ByteBuffer): Boolean = {

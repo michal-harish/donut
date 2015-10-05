@@ -1,4 +1,22 @@
-package org.apache.donut.memstore.log
+/**
+ * Donut - Recursive Stream Processing Framework
+ * Copyright (C) 2015 Michal Harish
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package org.apache.donut.utils.logmap
 
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
@@ -47,7 +65,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 
   @volatile private var counter = 0
 
-  override def count: Int = counter
+  override def size: Int = counter
 
   override def capacityInBytes = capacity + index.capacityInBytes
 
@@ -75,7 +93,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     synchronized {
       index.put(-1, position)
       counter -= 1
-      if (count == 0) {
+      if (size == 0) {
         //println(s"Recycling segment with capacity ${memory.capacity} bytes")
         valid = true
         uncompressedSizeInBytes.set(0)

@@ -1,4 +1,22 @@
-package org.apache.donut.memstore.log
+/**
+ * Donut - Recursive Stream Processing Framework
+ * Copyright (C) 2015 Michal Harish
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package org.apache.donut.utils.logmap
 
 import java.nio.ByteBuffer
 import java.security.MessageDigest
@@ -14,7 +32,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
   behavior of "ConcurrentLogHashMap"
 
   it should "be consistent and fast in a single-threaded context" in {
-    val m = new ConcurrentLogHashMap(segmentSizeMb = 1, compressMinBlockSize = 10240)
+    val m = new ConcurrentLogHashMap(segmentSizeMb = 1)
     val a = ByteBuffer.wrap("123456".getBytes)
     m.put(a, ByteBuffer.wrap("Hello".getBytes))
     m.put(a, ByteBuffer.wrap("Hello".getBytes))
@@ -29,7 +47,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
   }
 
   it should "behave consistently and perform in a multi-threaded context" in {
-    val m = new ConcurrentLogHashMap(segmentSizeMb = 1, compressMinBlockSize = 1024)
+    val m = new ConcurrentLogHashMap(segmentSizeMb = 1)
     val words = List("Hello", "World", "Foo", "Bar")
     val numWords = 100
     val stepFactor = 9997
@@ -64,12 +82,12 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     })
     e.shutdown
     if (!e.awaitTermination(10, TimeUnit.SECONDS)) {
-      throw new TimeoutException(s"${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.count}, compression = ${m.compressRatio}, load = ${m.load}")
+      throw new TimeoutException(s"${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
     }
 
     println(s"input count ${counter.get}, ${time.get} ms")
-    println(s"PUT ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.count}, compression = ${m.compressRatio}, load = ${m.load}")
-    m.count should be (counter.get)
+    println(s"PUT ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+    m.size should be (counter.get)
     m.compressRatio should be (1.0)
 
     def getAll = {
@@ -85,13 +103,13 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
           }) should be(expectedValue)
         }
       }
-      println(s"GET ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.count}, compression = ${m.compressRatio}, load = ${m.load}")
+      println(s"GET ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
     }
 
     getAll
     getAll
     m.compact
-    println(s"COMPACT > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.count}, compression = ${m.compressRatio}, load = ${m.load}")
+    println(s"COMPACT > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
     getAll
   }
 

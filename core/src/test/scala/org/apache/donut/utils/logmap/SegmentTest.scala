@@ -1,4 +1,22 @@
-package org.apache.donut.memstore.log
+/**
+ * Donut - Recursive Stream Processing Framework
+ * Copyright (C) 2015 Michal Harish
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package org.apache.donut.utils.logmap
 
 import java.nio.ByteBuffer
 import java.util.concurrent.{Executors, TimeUnit, TimeoutException}
@@ -78,7 +96,7 @@ class SegmentTest extends FlatSpec with Matchers {
       val value = ByteBuffer.wrap((0 to 100).map(x => words(math.abs(random.nextInt) % words.size)).mkString(",").getBytes)
       s.put(value)
     }
-    println(s"size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.count}, compression = ${s.compressRatio} %")
+    println(s"size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio} %")
     s.compact should be (false)
     s.sizeInBytes / 1024 / 1024 should be(10)
     s.compressRatio should be < (0.9)
@@ -110,11 +128,11 @@ class SegmentTest extends FlatSpec with Matchers {
     }
     e.shutdown
     if (!e.awaitTermination(10, TimeUnit.SECONDS)) {
-      throw new TimeoutException(s"size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.count}, compression = ${s.compressRatio}")
+      throw new TimeoutException(s"size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio}")
     }
-    println(s"parallel put & compact > size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.count}, compression = ${s.compressRatio}")
+    println(s"parallel put & compact > size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio}")
     println(s"parralel put & compact ${System.currentTimeMillis - processTime} ms")
-    s.count should be (25000)
+    s.size should be (25000)
     s.compressRatio should be < (0.9)
     s.sizeInBytes / 1024 / 1024 should be (10)
   }

@@ -1,5 +1,3 @@
-package org.apache.donut.memstore
-
 /**
  * Donut - Recursive Stream Processing Framework
  * Copyright (C) 2015 Michal Harish
@@ -18,6 +16,8 @@ package org.apache.donut.memstore
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+package org.apache.donut.memstore
+
 import java.nio.ByteBuffer
 
 import org.scalatest.{FlatSpec, Matchers}
@@ -29,14 +29,14 @@ class MemStoreTest extends FlatSpec with Matchers {
 
   implicit def stringAsBytes(s: String): Array[Byte] = s.getBytes
 
-  behavior of "MemStoreDumb"
-  it should "behave as expected" in {
-    val st = new MemStoreDumb(3)
-    test(st)
-    st.size should be(3)
-    st.contains("8") should be(false)
-    st.contains("7") should be(false)
-  }
+  //TODO behavior of "MemStoreLog"
+//  it should "behave as expected" in {
+//    val st = new MemStoreLogMap
+//    test(st)
+//    st.size should be(3)
+//    st.contains("8") should be(false)
+//    st.contains("7") should be(false)
+//  }
 
   behavior of "MemStoreMemDb"
   it should "behave as expected" in {
