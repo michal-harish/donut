@@ -17,6 +17,8 @@ class MemStoreLogMap(val maxSizeInMb: Int) extends MemStore {
 
   override def contains(key: ByteBuffer): Boolean = map.contains(key)
 
+  override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = map.iterator
+
   override def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X): Option[X] = {
     map.get(key, mapper) match {
       case null => map.contains(key) match {
@@ -29,5 +31,5 @@ class MemStoreLogMap(val maxSizeInMb: Int) extends MemStore {
 
   override def put(key: ByteBuffer, value: ByteBuffer): Unit = map.put(key, value)
 
-  override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = map.iterator
+
 }

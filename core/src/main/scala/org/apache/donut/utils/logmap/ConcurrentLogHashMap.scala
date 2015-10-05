@@ -45,7 +45,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
   val maxSizeInBytes = maxSizeInMb * 1024 * 1024
 
   type COORD = (Boolean, Short, Int)
-  private val index = new VarHashTable(initialCapacityKb = 64, loadFactor = 0.6)
+  private[donut] val index = new VarHashTable(initialCapacityKb = 64, loadFactor = 0.6)
   private val indexLock = new ReentrantReadWriteLock
   private val indexReader = indexLock.readLock
   private val indexWriter = indexLock.writeLock
@@ -152,6 +152,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
   def iterator[X](mapper: (ByteBuffer) => X): Iterator[(ByteBuffer, X)] = {
     indexReader.lock
     try {
+      //FIXME this iterator is not safe as it unlocks the indexReader after instantiation so we need to implement the underlying hashtable iterators with logical offset instead of hashPos so it behaves like ConcurrentHashMap interator
       val it = index.iterator
       new Iterator[(ByteBuffer, X)] {
         override def hasNext: Boolean = it.hasNext

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 import java.util.concurrent.{Executors, TimeUnit, TimeoutException}
+import org.apache.donut.utils.ByteUtils
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
@@ -111,6 +112,9 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
       counter.addAndGet(input.size)
       val ts = System.currentTimeMillis
       input.foreach { case (key, value) => {
+        if (ByteUtils.asIntValue(key.array) == Int.MinValue) {
+          println("!!")
+        }
         m.put(key, value)
       }
       }

@@ -27,8 +27,11 @@ import scala.collection.JavaConverters._
  * Created by mharis on 04/10/15.
  *
  * Not Thread-Safe
+ *
  */
 class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
+
+  //TODO class VarHashTable[K] and use K.hashCode so that we can do correction for 0 and Int.MinValue hashCodes transparently
 
   type VAL = (Boolean, Short, Int)
 
@@ -40,7 +43,7 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
   def load: Double = cube.values.asScala.map(_.load).sum / cube.size
 
-  def put(key: ByteBuffer, value: VAL) = hashTable(key).put(key, value)
+  def put(key: ByteBuffer, value: VAL) = hashTable(key, create = true).put(key, value)
 
   def get(key: ByteBuffer): VAL = hashTable(key).get(key)
 
@@ -55,24 +58,24 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
   }
 
   def iterator = new Iterator[(ByteBuffer, VAL)] {
-    val ct = cube.values.iterator
-    var tt: Iterator[(ByteBuffer, VAL)] = null
+    private val ct = cube.values.iterator
+    private var tt: Iterator[(ByteBuffer, VAL)] = null
+
     override def next(): (ByteBuffer, (Boolean, Short, Int)) = tt.next
-    override def hasNext: Boolean = tt match {
-      case null => {
-        ct.hasNext match {
-          case false => false
-          case true => {
-            tt = ct.next.iterator
-            tt.hasNext
-          }
+
+    override def hasNext: Boolean = {
+      if (tt == null || !tt.hasNext) {
+        if (ct.hasNext) {
+          tt = ct.next.iterator
+        } else {
+          return false
         }
       }
-      case i => i.hasNext
+      tt.hasNext
     }
   }
 
-  private def hashTable(key: ByteBuffer): GrowableHashTable = {
+  private def hashTable(key: ByteBuffer, create: Boolean = false): GrowableHashTable = {
     val keyLen = key.remaining
     cube.get(keyLen) match {
       case null => synchronized {
@@ -135,24 +138,39 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
     def update(f: (VAL) => VAL): Unit = {
       var hashPos = 0
-      while (hashPos + rowLen <=  data.capacity) {
-        f(getValue(hashPos)) match {
-          case null => data.putInt(hashPos, Int.MinValue)
-          case newValue => putValue(hashPos, newValue)
+      while (hashPos + rowLen <= data.capacity) {
+        val hash = data.getInt(hashPos)
+        if (hash != 0 && hash != Int.MinValue) {
+          f(getValue(hashPos)) match {
+            case null => data.putInt(hashPos, Int.MinValue)
+            case newValue => putValue(hashPos, newValue)
+          }
         }
         hashPos += rowLen
       }
     }
 
     def iterator = new Iterator[(ByteBuffer, VAL)] {
-      var hashPos = 0
-      val keyBuffer = data.duplicate
-      override def hasNext: Boolean = hashPos + rowLen <= data.capacity
+      private var hashPos = 0
+      private val keyBuffer = data.duplicate
+
+      override def hasNext: Boolean = {
+        while (hashPos + rowLen <= data.capacity) {
+          val hash = data.getInt(hashPos)
+          if (hash != 0 && hash != Int.MinValue) {
+            return true
+          } else {
+            hashPos += rowLen
+          }
+        }
+        false
+      }
 
       override def next(): (ByteBuffer, (Boolean, Short, Int)) = {
+        if (hashPos + rowLen > data.capacity) throw new NoSuchElementException
+        keyBuffer.limit(hashPos + keyLen)
         keyBuffer.position(hashPos)
-        keyBuffer.limit(hashPos+keyLen)
-        val result = (keyBuffer, getValue(hashPos - rowLen))
+        val result = (keyBuffer, getValue(hashPos))
         hashPos += rowLen
         result
       }
@@ -160,6 +178,9 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
     private[logmap] def find(key: ByteBuffer): Int = {
       val hashCode = key.getInt(key.position)
+      if (hashCode == 0 || hashCode == Int.MinValue) {
+        throw new IllegalArgumentException(s"Invalid hashCode `${hashCode}`. hashCode cannot be 0 or ${Int.MinValue}")
+      }
       var hash = getHash(hashCode)
       var numCollisions = 0
       while (numCollisions <= maxCollisions) {
@@ -188,6 +209,9 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
     private def put(key: ByteBuffer, value: VAL, growable: Boolean): Boolean = {
       val hashCode = key.getInt(key.position)
+      if (hashCode == 0 || hashCode == Int.MinValue) {
+        throw new IllegalArgumentException(s"Invalid hashCode `${hashCode}`. hashCode cannot be 0 or ${Int.MinValue}")
+      }
       var hash = getHash(hashCode)
       var numCollisions = 0
       while (true) {
@@ -264,7 +288,8 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
         if (oldData != null && oldData.capacity > 0) {
           var c = 0
           while (c < oldData.capacity) {
-            if (oldData.getInt(c) != 0) {
+            val hashCode = oldData.getInt(c)
+            if (hashCode != 0 && hashCode != Int.MinValue) {
               oldData.position(c)
               success = success && put(oldData, getValue(c, oldData), false)
             }
