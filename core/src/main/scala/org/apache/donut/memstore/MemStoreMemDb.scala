@@ -18,7 +18,10 @@
 
 package org.apache.donut.memstore
 
+import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
+
+import org.apache.donut.utils.ByteUtils
 import org.mapdb._
 
 class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
@@ -30,7 +33,7 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
 
   private val map: HTreeMap[Array[Byte], Array[Byte]] = db.hashMapCreate("DonutLocalStore")
     .expireStoreSize(maxSizeInMb.toDouble / 1024)
-    .expireAfterAccess(3, TimeUnit.DAYS)// TODO this doesn't really work after bootstrap but then the store size should kick in
+    .expireAfterAccess(3, TimeUnit.DAYS) // TODO this doesn't really work after bootstrap but then the store size should kick in
     .counterEnable()
     .keySerializer(Serializer.BYTE_ARRAY)
     .valueSerializer(Serializer.BYTE_ARRAY)
@@ -42,48 +45,43 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
 
   override def minSizeInBytes: Long = store.getCurrSize // bug in MapDB FreeSize and CurrSize are swapped
 
-  override def contains(key: Array[Byte]) = {
-    map.containsKey(key)
+  override def contains(key: ByteBuffer) = {
+    map.containsKey(ByteUtils.bufToArray(key))
   }
 
   val EVICTED = Array[Byte]()
 
-  override def put(key: Array[Byte], value: Array[Byte]): Unit = {
+  override def put(key: ByteBuffer, value: ByteBuffer): Unit = {
+    val k = ByteUtils.bufToArray(key)
     if (value == null) {
-      map.put(key, EVICTED)
+      map.put(k, EVICTED)
     } else {
-      map.put(key, value)
+      val v = ByteUtils.bufToArray(value)
+      map.put(k, v)
     }
   }
 
-  override def get(key: Array[Byte]): Option[Array[Byte]] = {
-    val value = map.get(key)
+  override def get[X](key: ByteBuffer, f: (ByteBuffer) => X): Option[X] = {
+    val k = ByteUtils.bufToArray(key)
+    val value = map.get(k)
     value match {
       case null => None
-      case v: Array[Byte] if (v.length == 0) => Some(null)
-      case v => Some(v)
+      case v: Array[Byte] if (v.length == 0) => Some(null.asInstanceOf[X])
+      case v => Some(f(ByteBuffer.wrap(v)))
     }
   }
 
-  override def remove(key: Array[Byte]): Option[Array[Byte]] = {
-    val value = map.remove(key)
-    value match {
-      case null => None
-      case v: Array[Byte] if (v.length == 0) => Some(null)
-      case v => Some(value)
-    }
-  }
-
-  override def iterator: Iterator[(Array[Byte], Array[Byte])] = new Iterator[(Array[Byte], Array[Byte])] {
+  override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = new Iterator[(ByteBuffer, ByteBuffer)] {
     val it = MemStoreMemDb.this.map.entrySet.iterator
 
     override def hasNext: Boolean = it.hasNext
 
-    override def next(): (Array[Byte], Array[Byte]) = {
+    override def next(): (ByteBuffer, ByteBuffer) = {
       val entry = it.next
-      (entry.getKey.array, entry.getValue)
+      (ByteBuffer.wrap(entry.getKey), ByteBuffer.wrap(entry.getValue))
     }
   }
+
 
 }
 

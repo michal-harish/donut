@@ -188,13 +188,14 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
         compressType match {
           case 0 => {
             mappedBuffer.limit(mappedBuffer.position + internalLength)
-            decoder(mappedBuffer.slice)
+            val slice = mappedBuffer.slice
+            if (slice.remaining == 0) null.asInstanceOf[X] else decoder(slice)
           }
           case 3 => {
             val buffer = decompressBuffer.get
             decompressor.decompress(mappedBuffer, mappedBuffer.position, buffer, buffer.position, internalLength)
             buffer.limit(buffer.position + internalLength)
-            decoder(buffer)
+            if (buffer.remaining == 0) null.asInstanceOf[X] else decoder(buffer)
           }
         }
       }
@@ -296,11 +297,13 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     try {
       val pointer = index.get(block)
       var destOffset = pointer + 9
-      var srcPos = value.position
-      while (srcPos < value.limit) {
-        memory.put(destOffset, value.get(srcPos))
-        destOffset += 1
-        srcPos += 1
+      if (value != null) {
+        var srcPos = value.position
+        while (srcPos < value.limit) {
+          memory.put(destOffset, value.get(srcPos))
+          destOffset += 1
+          srcPos += 1
+        }
       }
       val uncompressedLength = memory.getInt(pointer + 5)
       uncompressedSizeInBytes addAndGet (uncompressedLength + 9)

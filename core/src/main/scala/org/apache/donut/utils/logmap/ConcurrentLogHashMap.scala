@@ -70,34 +70,18 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
 
   def compact: Unit = compact(0)
 
-  def compact(makeAvailableNumBytes: Int): Unit = {
-    catalog.compact
-    if (currentSizeInBytes + makeAvailableNumBytes > maxSizeInBytes) {
-      indexWriter.lock
-      try {
-        var bytesToRemove = currentSizeInBytes + makeAvailableNumBytes - maxSizeInBytes
-        var nSegmentsToRemove = 0
-        catalog.iterator.zipWithIndex.foreach { case (segment, s) => {
-          if (bytesToRemove > 0) {
-            bytesToRemove -= segment.capacityInBytes
-            nSegmentsToRemove += 1
-          }
-        }
-        }
-        if (nSegmentsToRemove > 0) {
-          index.update((v: COORD) => {
-            v._2 match {
-              case s if (s < nSegmentsToRemove) => null
-              case segment => (v._1, (segment - nSegmentsToRemove).toShort, v._3)
-            }
-          })
-          catalog.dropFirstSegments(nSegmentsToRemove)
-        }
-      } finally {
-        indexWriter.unlock
-      }
+  def contains(key: ByteBuffer): Boolean = {
+    indexReader.lock
+    try {
+      index.contains(key)
+    } finally {
+      indexReader.unlock
     }
   }
+
+  final def get(key: ByteBuffer): ByteBuffer = get(key, (b: ByteBuffer) => b)
+
+  final def iterator: Iterator[(ByteBuffer, ByteBuffer)] = iterator(b => b)
 
   def put(key: ByteBuffer, value: ByteBuffer) = {
     val newIndexValue = catalog.append(key, value)
@@ -112,8 +96,6 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
       indexWriter.unlock
     }
   }
-
-  def get(key: ByteBuffer): ByteBuffer = get(key, (b: ByteBuffer) => b)
 
   def get[X](key: ByteBuffer, mapper: (ByteBuffer => X)): X = {
     def inTransit(i: COORD) = i._1
@@ -166,6 +148,53 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
       indexReader.unlock
     }
   }
+
+  def iterator[X](mapper: (ByteBuffer) => X): Iterator[(ByteBuffer, X)] = {
+    indexReader.lock
+    try {
+      val it = index.iterator
+      new Iterator[(ByteBuffer, X)] {
+        override def hasNext: Boolean = it.hasNext
+
+        override def next(): (ByteBuffer, X) = {
+          val (key: ByteBuffer, p: COORD) = it.next
+          (key, catalog.getBlock(p, mapper))
+        }
+      }
+    } finally {
+      indexReader.unlock
+    }
+  }
+
+  def compact(makeAvailableNumBytes: Int): Unit = {
+    catalog.compact
+    if (currentSizeInBytes + makeAvailableNumBytes > maxSizeInBytes) {
+      indexWriter.lock
+      try {
+        var bytesToRemove = currentSizeInBytes + makeAvailableNumBytes - maxSizeInBytes
+        var nSegmentsToRemove = 0
+        catalog.iterator.zipWithIndex.foreach { case (segment, s) => {
+          if (bytesToRemove > 0) {
+            bytesToRemove -= segment.capacityInBytes
+            nSegmentsToRemove += 1
+          }
+        }
+        }
+        if (nSegmentsToRemove > 0) {
+          index.update((v: COORD) => {
+            v._2 match {
+              case s if (s < nSegmentsToRemove) => null
+              case segment => (v._1, (segment - nSegmentsToRemove).toShort, v._3)
+            }
+          })
+          catalog.dropFirstSegments(nSegmentsToRemove)
+        }
+      } finally {
+        indexWriter.unlock
+      }
+    }
+  }
+
 
 }
 

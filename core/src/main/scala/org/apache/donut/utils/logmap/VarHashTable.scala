@@ -44,12 +44,32 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
   def get(key: ByteBuffer): VAL = hashTable(key).get(key)
 
+  def contains(key: ByteBuffer): Boolean = hashTable(key).find(key) != -1
+
   def remove(key: ByteBuffer): Unit = hashTable(key).remove(key)
 
   def flag(key: ByteBuffer, flagValue: Boolean) = hashTable(key).flag(key, flagValue)
 
   def update(f: (VAL) => VAL): Unit = {
     cube.values.asScala.foreach(hashTable => hashTable.update(f))
+  }
+
+  def iterator = new Iterator[(ByteBuffer, VAL)] {
+    val ct = cube.values.iterator
+    var tt: Iterator[(ByteBuffer, VAL)] = null
+    override def next(): (ByteBuffer, (Boolean, Short, Int)) = tt.next
+    override def hasNext: Boolean = tt match {
+      case null => {
+        ct.hasNext match {
+          case false => false
+          case true => {
+            tt = ct.next.iterator
+            tt.hasNext
+          }
+        }
+      }
+      case i => i.hasNext
+    }
   }
 
   private def hashTable(key: ByteBuffer): GrowableHashTable = {
@@ -124,7 +144,21 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
       }
     }
 
-    private def find(key: ByteBuffer): Int = {
+    def iterator = new Iterator[(ByteBuffer, VAL)] {
+      var hashPos = 0
+      val keyBuffer = data.duplicate
+      override def hasNext: Boolean = hashPos + rowLen <= data.capacity
+
+      override def next(): (ByteBuffer, (Boolean, Short, Int)) = {
+        keyBuffer.position(hashPos)
+        keyBuffer.limit(hashPos+keyLen)
+        val result = (keyBuffer, getValue(hashPos - rowLen))
+        hashPos += rowLen
+        result
+      }
+    }
+
+    private[logmap] def find(key: ByteBuffer): Int = {
       val hashCode = key.getInt(key.position)
       var hash = getHash(hashCode)
       var numCollisions = 0
@@ -195,7 +229,13 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
     }
 
     private def resolveCollision(hash: Int): Int = {
+      //open addressing:
       (hash + 1) % numPositions
+      //not used for now:
+      // - Coalesced hashing
+      // - Cuckoo hashing
+      // - 2-choice hashing
+      // - Hopscotch hashing
     }
 
     private def keyEquals(atPos: Int, other: ByteBuffer): Boolean = {

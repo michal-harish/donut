@@ -27,39 +27,39 @@ import org.scalatest.{FlatSpec, Matchers}
  */
 class MemStoreTest extends FlatSpec with Matchers {
 
-  implicit def stringAsBytes(s: String): Array[Byte] = s.getBytes
+  implicit def stringAsBytes(s: String): ByteBuffer = ByteBuffer.wrap(s.getBytes)
 
   //TODO behavior of "MemStoreLog"
-//  it should "behave as expected" in {
-//    val st = new MemStoreLogMap
-//    test(st)
-//    st.size should be(3)
-//    st.contains("8") should be(false)
-//    st.contains("7") should be(false)
-//  }
+  it should "behave as expected" in {
+    val st = new MemStoreLogMap(maxSizeInMb = 1024)
+    test(st)
+    st.size should be(5)
+  }
 
   behavior of "MemStoreMemDb"
   it should "behave as expected" in {
-    test(new MemStoreMemDb(1024))
+    val st = new MemStoreMemDb(1024)
+    test(st)
+    st.size should be(5)
   }
 
   def test(storage: MemStore) = {
 
-    storage.put("9", "A")
-    storage.put("8", "B")
-    storage.put(ByteBuffer.wrap("7".getBytes), ByteBuffer.wrap("C".getBytes))
+    storage.put("9000", "A")
+    storage.put("8000", "B")
+    storage.put(ByteBuffer.wrap("7000".getBytes), ByteBuffer.wrap("C".getBytes))
     // after 3 puts the order of eviction is 7,8,(9)
     storage.size should be(3)
 
-    storage.get("9") // refreshes 9 so the order of eviction is 9,7,(8)
-    storage.put("6", "D") // pushes out 8
-    storage.put("5", null) // pushes out 7
+    storage.get("9000") // refreshes 9 so the order of eviction is 9,7,(8)
+    storage.put("6000", "D") // pushes out 8
+    storage.put("5000", null) // pushes out 7
 
 
-    storage.contains("9") should be(true)
-    storage.contains("6") should be(true)
-    storage.contains("5") should be(true)
-    storage.get("5") should be (Some(null))
+    storage.contains("9000") should be(true)
+    storage.contains("6000") should be(true)
+    storage.contains("5000") should be(true)
+    storage.get("5000") should be (Some(null))
   }
 
 

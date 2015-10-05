@@ -1,24 +1,43 @@
 /**
  * Donut - Recursive Stream Processing Framework
  * Copyright (C) 2015 Michal Harish
- *
+ * <p/>
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
+ * <p/>
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
+ * <p/>
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package org.apache.donut.utils;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+
 public class ByteUtils {
+
+    public static byte[] bufToArray(ByteBuffer b) {
+        if (b.hasArray()) {
+            if (b.position() == 0 && b.limit() == b.capacity()) {
+                return b.array();
+            } else {
+                return Arrays.copyOfRange(b.array(), b.arrayOffset(), b.arrayOffset() + b.remaining());
+            }
+        } else {
+            byte[] a = new byte[b.remaining()];
+            int bp = b.position();
+            b.get(a);
+            b.position(bp);
+            return a;
+        }
+    }
 
     public static byte[] reverse(byte[] src) {
         byte[] dest = new byte[src.length];
@@ -26,9 +45,9 @@ public class ByteUtils {
         return dest;
     }
 
-    public static void reverse(byte[] src, byte [] dest, int destOffset){
-            int i = destOffset;
-        int j = Math.min(dest.length -1, src.length - 1);
+    public static void reverse(byte[] src, byte[] dest, int destOffset) {
+        int i = destOffset;
+        int j = Math.min(dest.length - 1, src.length - 1);
         while (j >= 0 && i < dest.length) {
             dest[i] = src[j];
             j--;
@@ -79,18 +98,20 @@ public class ByteUtils {
         parseRadix16(array, offset, len, result, 0);
         return result;
     }
+
     public static void parseRadix16(byte[] array, int offset, int len, byte[] dest, int destOffset) {
         int limit = Math.min(offset + len, array.length);
         int j = destOffset;
-        for (int i = offset; i < limit; i+=2,j++) {
-            dest[j] = (byte) (parseRadix16Byte(array[i]) * 16 + parseRadix16Byte(array[i+1]));
+        for (int i = offset; i < limit; i += 2, j++) {
+            dest[j] = (byte) (parseRadix16Byte(array[i]) * 16 + parseRadix16Byte(array[i + 1]));
         }
     }
 
     private static final String HEX = "0123456789abcdef";
+
     public static String toRadix16(byte[] source, int srcOffset, int len) {
         char[] hex = new char[len * 2];
-        for ( int j = 0; j < len; j++ ) {
+        for (int j = 0; j < len; j++) {
             int b = source[j + srcOffset] & 0xFF;
             hex[j * 2] = HEX.charAt(b >>> 4);
             hex[j * 2 + 1] = HEX.charAt(b & 0x0F);
@@ -144,7 +165,7 @@ public class ByteUtils {
         result[offset + 3] = (byte) ((value >>> 0) & 0xFF);
     }
 
-    public static  byte[] putLongValue(long value, byte[] result, int offset) {
+    public static byte[] putLongValue(long value, byte[] result, int offset) {
         result[offset + 0] = (byte) ((value >>> 56) & 0xFF);
         result[offset + 1] = (byte) ((value >>> 48) & 0xFF);
         result[offset + 2] = (byte) ((value >>> 40) & 0xFF);
@@ -173,9 +194,9 @@ public class ByteUtils {
         return true;
     }
 
-    final public static byte[] max (byte[] lArray, byte[] rArray) {
+    final public static byte[] max(byte[] lArray, byte[] rArray) {
         int cmp = compare(lArray, 0, lArray.length, rArray, 0, rArray.length);
-        if (cmp >=0) {
+        if (cmp >= 0) {
             return lArray;
         } else {
             return rArray;
@@ -302,10 +323,10 @@ public class ByteUtils {
     }
 
     private static String UUIDToString(long mostSigBits, long leastSigBits, String separator) {
-        return (digits(mostSigBits >> 32, 8) 
-                + separator + digits(mostSigBits >> 16, 4) 
-                + separator + digits(mostSigBits, 4) 
-                + separator + digits(leastSigBits >> 48, 4) 
+        return (digits(mostSigBits >> 32, 8)
+                + separator + digits(mostSigBits >> 16, 4)
+                + separator + digits(mostSigBits, 4)
+                + separator + digits(leastSigBits >> 48, 4)
                 + separator + digits(leastSigBits, 12));
     }
 

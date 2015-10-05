@@ -118,9 +118,9 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
   def dealloc(p: COORD): Unit = segments.get(p._2).remove(p._3)
 
   def append(key: ByteBuffer, value: ByteBuffer): COORD = {
-    if (value.remaining < compressMinBlockSize) {
+    if (value == null || value.remaining < compressMinBlockSize) {
       //if we know that the value is not going to be compressed, using alloc will lock significantly less
-      val p: COORD = alloc(value.remaining)
+      val p: COORD = alloc(if (value == null) 0 else value.remaining)
       try {
         segments.get(p._2).set(p._3, value)
         return p

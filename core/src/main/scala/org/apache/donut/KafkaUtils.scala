@@ -212,14 +212,14 @@ case class KafkaUtils(val config: Properties) {
     put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
   }))
 
-  def createDebugConsumer(topic: String, processor: (MessageAndMetadata[Array[Byte], Array[Byte]]) => Unit) = {
+  def createDebugConsumer(topic: String, processor: (ByteBuffer, ByteBuffer) => Unit) = {
     val consumer = Consumer.create(new ConsumerConfig(new Properties() {
       put("group.id", "DonutDebugger")
       put("zookeeper.connect", config.get("zookeeper.connect"))
     }))
     val stream = consumer.createMessageStreams(Map(topic -> 1))(topic).head
     for (msg <- stream) {
-      processor(msg)
+      processor(ByteBuffer.wrap(msg.key), ByteBuffer.wrap(msg.message))
     }
   }
 

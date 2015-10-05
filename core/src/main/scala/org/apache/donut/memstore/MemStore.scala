@@ -32,36 +32,14 @@ abstract class MemStore {
 
   def minSizeInBytes: Long
 
-  def contains(key: Array[Byte]): Boolean
+  def contains(key: ByteBuffer): Boolean
 
-  def put(key: Array[Byte], value: Array[Byte]): Unit
+  final def get(key: ByteBuffer): Option[ByteBuffer] = get(key, b => b)
 
-  def get(key: Array[Byte]): Option[Array[Byte]]
+  def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X) : Option[X]
 
-  def get(key: ByteBuffer): Option[Array[Byte]] = {
-    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
-    get(keyBytes)
-  }
-//TODO zero-copy work => def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X) : X
+  def iterator: Iterator[(ByteBuffer, ByteBuffer)]
 
-  def remove(key: Array[Byte]): Option[Array[Byte]]
+  def put(key: ByteBuffer, value: ByteBuffer): Unit
 
-  def iterator: Iterator[(Array[Byte], Array[Byte])]
-
-  def put(key: ByteBuffer, value: ByteBuffer): Unit = {
-    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
-    val valueBytes = if (value == null) null else
-      java.util.Arrays.copyOfRange(value.array, value.arrayOffset, value.arrayOffset + value.remaining)
-    put(keyBytes, valueBytes)
-  }
-
-  def put(key: ByteBuffer, value: Array[Byte]): Unit = {
-    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
-    put(keyBytes, value)
-  }
-
-  def contains(key: ByteBuffer): Boolean = {
-    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
-    contains(keyBytes)
-  }
 }
