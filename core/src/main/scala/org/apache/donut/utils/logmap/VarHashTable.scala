@@ -30,17 +30,27 @@ import scala.collection.JavaConverters._
  */
 class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
+  type VAL = (Boolean, Short, Int)
+
   val cube = new util.HashMap[Int, GrowableHashTable]
+
+  def size: Long = cube.values.asScala.map(_.size).sum
 
   def sizeInBytes: Long = cube.values.asScala.map(_.sizeInBytes).sum
 
   def load: Double = cube.values.asScala.map(_.load).sum / cube.size
 
-  def put(key: ByteBuffer, value: (Boolean, Short, Int)) = hashTable(key).put(key, value)
+  def put(key: ByteBuffer, value: VAL) = hashTable(key).put(key, value)
 
-  def get(key: ByteBuffer): (Boolean, Short, Int) = hashTable(key).get(key)
+  def get(key: ByteBuffer): VAL = hashTable(key).get(key)
+
+  def remove(key: ByteBuffer): Unit = hashTable(key).remove(key)
 
   def flag(key: ByteBuffer, flagValue: Boolean) = hashTable(key).flag(key, flagValue)
+
+  def update(f: (VAL) => VAL): Unit = {
+    cube.values.asScala.foreach(hashTable => hashTable.update(f))
+  }
 
   private def hashTable(key: ByteBuffer): GrowableHashTable = {
     val keyLen = key.remaining
@@ -58,6 +68,10 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
     def sizeInBytes: Long = data.capacity
 
+    def size = loaded
+
+    def load: Double = loaded.toDouble / numPositions
+
     private val INITIAL_CAPACITY = initialCapacityKb * 1024
 
     private var maxCollisions = 0
@@ -66,19 +80,52 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
 
     private var data: ByteBuffer = null
 
-    private var size = 0 // number of positions
+    private var numPositions = 0 // number of positions
 
     private var loaded = 0 //number of used positions
 
-    def load: Double = loaded.toDouble / size
-
     grow
+
+    def get(key: ByteBuffer): VAL = {
+      find(key) match {
+        case -1 => null
+        case hashPos => return getValue(hashPos)
+      }
+    }
+
+    def flag(key: ByteBuffer, flagValue: Boolean): Unit = {
+      find(key) match {
+        case -1 => throw new ArrayIndexOutOfBoundsException
+        case hashPos => data.put(hashPos + keyLen, if (flagValue) 1 else 0)
+      }
+    }
+
+    def remove(key: ByteBuffer): Unit = {
+      find(key) match {
+        case -1 => throw new ArrayIndexOutOfBoundsException(new String(key.array, 4, key.remaining - 4) + s" hashCode = ${key.getInt(0)}")
+        case hashPos => {
+          data.putInt(hashPos, Int.MinValue)
+          loaded -= 1
+          if (loaded == 0) maxCollisions = 0
+        }
+      }
+    }
+
+    def put(key: ByteBuffer, value: VAL): Unit = put(key, value, true)
+
+    def update(f: (VAL) => VAL): Unit = {
+      var hashPos = 0
+      while (hashPos + rowLen <=  data.capacity) {
+        f(getValue(hashPos)) match {
+          case null => data.putInt(hashPos, Int.MinValue)
+          case newValue => putValue(hashPos, newValue)
+        }
+        hashPos += rowLen
+      }
+    }
 
     private def find(key: ByteBuffer): Int = {
       val hashCode = key.getInt(key.position)
-      if (hashCode == 0) {
-        throw new IllegalArgumentException
-      }
       var hash = getHash(hashCode)
       var numCollisions = 0
       while (numCollisions <= maxCollisions) {
@@ -95,70 +142,31 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
       -1
     }
 
-    def get(key: ByteBuffer): (Boolean, Short, Int) = {
-      find(key) match {
-        case -1 => null
-        case hashPos => {
-          return (
-            data.get(hashPos + keyLen) != 0,
-            data.getShort(hashPos + keyLen + 1),
-            data.getInt(hashPos + keyLen + 3)
-            )
-        }
-      }
-//      val hashCode = key.getInt(key.position)
-//      if (hashCode == 0) {
-//        throw new IllegalArgumentException
-//      }
-//      var hash = getHash(hashCode)
-//      var numCollisions = 0
-//      while (numCollisions <= maxCollisions) {
-//        val hashPos = hash * rowLen
-//        val inspectHashCode = data.getInt(hashPos)
-//        if (inspectHashCode == 0) {
-//          return null
-//        } else if (inspectHashCode == hashCode && keyEquals(hashPos, key)) {
-//          return (
-//            data.get(hashPos + keyLen) != 0,
-//            data.getShort(hashPos + keyLen + 1),
-//            data.getInt(hashPos + keyLen + 3)
-//            )
-//        }
-//        hash = resolveCollision(hash)
-//        numCollisions += 1
-//      }
-//      null
+    private def getValue(hashPos: Int, fromData: ByteBuffer = data): VAL = {
+      (fromData.get(hashPos + keyLen) != 0, fromData.getShort(hashPos + keyLen + 1), fromData.getInt(hashPos + keyLen + 3))
     }
 
-    def flag(key: ByteBuffer, flagValue: Boolean): Unit = {
-      find(key) match {
-        case -1 => throw new ArrayIndexOutOfBoundsException
-        case hashPos => data.put(hashPos + keyLen, if (flagValue) 1 else 0)
-      }
+    private def putValue(hashPos: Int, value: VAL): Unit = {
+      data.put(hashPos + keyLen, if (value._1) 1 else 0)
+      data.putShort(hashPos + keyLen + 1, value._2)
+      data.putInt(hashPos + keyLen + 3, value._3)
     }
 
-    def put(key: ByteBuffer, value: (Boolean, Short, Int)): Unit = put(key, value, true)
-
-    private def put(key: ByteBuffer, value: (Boolean, Short, Int), growable: Boolean): Boolean = {
+    private def put(key: ByteBuffer, value: VAL, growable: Boolean): Boolean = {
       val hashCode = key.getInt(key.position)
-      if (hashCode == 0) {
-        throw new IllegalArgumentException
-      }
       var hash = getHash(hashCode)
       var numCollisions = 0
       while (true) {
         val hashPos = hash * rowLen
         val inspectHashCode = data.getInt(hashPos)
-        if (inspectHashCode == 0 || (inspectHashCode == hashCode && keyEquals(hashPos, key))) {
+        if (inspectHashCode == 0 || inspectHashCode == Int.MinValue || (inspectHashCode == hashCode && keyEquals(hashPos, key))) {
+          if (inspectHashCode == 0 || inspectHashCode == Int.MinValue) loaded += 1
           var i = 0
           while (i < keyLen) {
             data.put(hashPos + i, key.get(key.position + i))
             i += 1
           }
-          data.put(hashPos + keyLen, if (value._1) 1 else 0)
-          data.putShort(hashPos + keyLen + 1, value._2)
-          data.putInt(hashPos + keyLen + 3, value._3)
-          loaded += 1
+          putValue(hashPos, value)
           return true
         }
         hash = resolveCollision(hash)
@@ -172,22 +180,22 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
           throw new IllegalArgumentException(s"Could not resolve hash table collision, load ${load} % ")
         }
       }
-      false
+      return false
     }
 
     private def getHash(hashCode: Int): Int = {
-      if (hashCode == Integer.MIN_VALUE) {
-        Integer.MAX_VALUE % size
+      if (hashCode == Integer.MIN_VALUE || hashCode == 0) {
+        Integer.MAX_VALUE % numPositions
       } else {
-        ((hashCode.toLong + Integer.MAX_VALUE) % size).toInt match {
-          case h if (h >= size) => throw new IllegalArgumentException
-          case h => h
+        ((hashCode.toLong + Integer.MAX_VALUE) % numPositions) match {
+          case h if (h >= numPositions) => throw new IllegalArgumentException
+          case h => h.toInt
         }
       }
     }
 
     private def resolveCollision(hash: Int): Int = {
-      (hash + 1) % size
+      (hash + 1) % numPositions
     }
 
     private def keyEquals(atPos: Int, other: ByteBuffer): Boolean = {
@@ -208,9 +216,9 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
       var capacity = if (data == null) INITIAL_CAPACITY / 2 else oldData.capacity
       var success = true
       do {
-        capacity = (capacity * 2).toInt / rowLen * rowLen
+        capacity = (capacity * 2.0).toInt / rowLen * rowLen
         data = ByteBuffer.allocateDirect(capacity)
-        size = capacity / rowLen
+        numPositions = capacity / rowLen
         loaded = 0
         maxCollisions = 0
         if (oldData != null && oldData.capacity > 0) {
@@ -218,10 +226,7 @@ class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
           while (c < oldData.capacity) {
             if (oldData.getInt(c) != 0) {
               oldData.position(c)
-              val flag = oldData.get(oldData.position + keyLen) != 0
-              val segment = oldData.getShort(oldData.position + keyLen + 1)
-              val pointer = oldData.getInt(oldData.position + keyLen + 3)
-              success = success && put(oldData, (flag, segment, pointer), false)
+              success = success && put(oldData, getValue(c, oldData), false)
             }
             c += rowLen
           }

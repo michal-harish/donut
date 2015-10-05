@@ -20,7 +20,7 @@ package org.apache.donut.utils.logmap
 
 import java.nio.ByteBuffer
 import java.security.MessageDigest
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 import java.util.concurrent.{Executors, TimeUnit, TimeoutException}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -32,7 +32,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
   behavior of "ConcurrentLogHashMap"
 
   it should "be consistent and fast in a single-threaded context" in {
-    val m = new ConcurrentLogHashMap(segmentSizeMb = 1)
+    val m = new ConcurrentLogHashMap(maxSizeInMb = 10, segmentSizeMb = 1)
     val a = ByteBuffer.wrap("123456".getBytes)
     m.put(a, ByteBuffer.wrap("Hello".getBytes))
     m.put(a, ByteBuffer.wrap("Hello".getBytes))
@@ -47,11 +47,11 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
   }
 
   it should "behave consistently and perform in a multi-threaded context" in {
-    val m = new ConcurrentLogHashMap(segmentSizeMb = 1)
+    val m = new ConcurrentLogHashMap(maxSizeInMb = 64, segmentSizeMb = 16)
     val words = List("Hello", "World", "Foo", "Bar")
     val numWords = 100
     val stepFactor = 9997
-    val counter = new AtomicLong(0)
+    val counter = new AtomicInteger(0)
     val time = new AtomicLong(0)
     val numThreads = 4
     val e = Executors.newFixedThreadPool(numThreads)
@@ -82,13 +82,40 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     })
     e.shutdown
     if (!e.awaitTermination(10, TimeUnit.SECONDS)) {
-      throw new TimeoutException(s"${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+      throw new TimeoutException(s"${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
     }
 
     println(s"input count ${counter.get}, ${time.get} ms")
-    println(s"PUT ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+    println(s"PUT ALL > ${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
     m.size should be (counter.get)
     m.compressRatio should be (1.0)
+
+    getAll
+    getAll
+    m.compact
+    println(s"COMPACT > ${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+    m.currentSizeInBytes should be <= (m.maxSizeInBytes)
+
+    putMoreThanMaxAllowed
+    println(s"EXTRA PUT ${counter.get}")
+    println(s"PUT MORE> ${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+    m.currentSizeInBytes should be <= (m.maxSizeInBytes)
+    m.size should be < (counter.get)
+
+    def putMoreThanMaxAllowed = {
+      val digest = MessageDigest.getInstance("MD5")
+      val input = (((numThreads + 1) * stepFactor) to ((numThreads + 10) * stepFactor - 1)).map(i => (
+        genKey(i, digest),
+        ByteBuffer.wrap((0 to numWords).map(x => words(i % words.size)).mkString(",").getBytes))
+      ).toMap
+      counter.addAndGet(input.size)
+      val ts = System.currentTimeMillis
+      input.foreach { case (key, value) => {
+        m.put(key, value)
+      }
+      }
+      time.addAndGet(System.currentTimeMillis - ts)
+    }
 
     def getAll = {
       val digest = MessageDigest.getInstance("MD5")
@@ -103,14 +130,8 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
           }) should be(expectedValue)
         }
       }
-      println(s"GET ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+      println(s"GET ALL > ${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
     }
-
-    getAll
-    getAll
-    m.compact
-    println(s"COMPACT > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
-    getAll
   }
 
   def genKey(k: Int, digest: MessageDigest): ByteBuffer = {

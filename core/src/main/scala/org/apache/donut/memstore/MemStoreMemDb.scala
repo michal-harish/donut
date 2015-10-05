@@ -26,7 +26,6 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
   private val db = DBMaker
     .memoryDirectDB()
     .transactionDisable()
-    //.asyncWriteEnable()
     .make()
 
   private val map: HTreeMap[Array[Byte], Array[Byte]] = db.hashMapCreate("DonutLocalStore")

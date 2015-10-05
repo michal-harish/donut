@@ -34,21 +34,28 @@ class VarHashTableTest extends FlatSpec with Matchers {
   it should "be benchmark for VarLogHashMap" in {
     val h = new util.HashMap[ByteBuffer, (Boolean, Short, Int)]
     println(s"java.util.HashMap.put = ${put((key, sp) => h.put(key, sp), (key) => h.get(key))} ms")
+    h.size should be(range.size)
     println(s"java.util.HashMap.get = ${get((key) => h.get(key))} ms")
+    h.size should be(range.size)
+    println(s"java.util.HashMap.del = ${remove((key) => h.remove(key))} ms")
+    h.size should be(0)
   }
 
   behavior of "VarHashTable"
 
   it should "be comparable to HashMap" in {
-
     val h = new VarHashTable(initialCapacityKb = 4)
-
     val putMs = put((key, sp) => h.put(key, sp), (key) => h.get(key))
     println(s"VarHashTable.put = ${putMs}ms")
+    h.size should be(range.size)
     println(s"VarHashTable.get = ${get((key) => h.get(key))} ms")
-    println(s"VarHashTable ${h.sizeInBytes / 1024 / 1024} Mb, load ${h.load}\n")
+    h.size should be(range.size)
+    println(s"VarHashTable size = ${h.size}, memory = ${h.sizeInBytes / 1024 / 1024} Mb, load ${h.load}")
+    h.size should be(range.size)
     h.load should be <= 0.7
-
+    println(s"VarHashTable.del = ${remove((key) => h.remove(key))} ms")
+    println(s"VarHashTable size = ${h.size}, memory = ${h.sizeInBytes / 1024 / 1024} Mb, load ${h.load}")
+    h.size should be(0)
   }
 
   def get(f: (ByteBuffer) => (Boolean, Short, Int)): Long = {
@@ -71,6 +78,14 @@ class VarHashTableTest extends FlatSpec with Matchers {
       f2(key) should be (false, (k % 3 + 1).toShort, 1)
       f(key, (false, (k % 3 + 2).toShort, 2))
       f2(key) should be (false, (k % 3 + 2).toShort, 2)
+    }
+    System.currentTimeMillis - ts
+  }
+
+  def remove(f: (ByteBuffer) => Unit): Long = {
+    val ts = System.currentTimeMillis
+    for (k <- range) {
+      f(genKey(k))
     }
     System.currentTimeMillis - ts
   }

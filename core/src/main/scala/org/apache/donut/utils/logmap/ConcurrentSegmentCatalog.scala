@@ -27,51 +27,52 @@ import scala.collection.JavaConverters._
  * ConcurrentSegmentCatalog is a Thread-Safe collection of Segments. Segment is a collection of indexed blocks implemented elsewhere.
  *
  */
-class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize: Int) extends AnyRef {
+class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize: Int, segmentAllocCallback: (Int) => Unit) extends AnyRef {
 
   //TODO last access timestamp associated with each segment
   //TODO background thread for compaction with some basic configuration
   /**
-   * COORD type is a Coordinate pointing to a block in
+   * COORD is a Coordinate type, essentially a pointer a segments[Short].blocks[Int] while the Boolean is a transit flag
+   * signifying that another thread is changing the coordinates of the given block - used for concurrent touch operation, see get[X]
    */
   type COORD = (Boolean, Short, Int)
 
+  private val segments = new java.util.LinkedList[Segment]() {
+    add(newSegmentInstance)
+  }
 
-  private val segments = new java.util.LinkedList[Segment]()
-
-  @volatile private var currentSegment: Short = - 1
-
-  createNewSegment
-
-  /**
-   * @param i
-   * @return true if the index value belongs to the latest segment
-   */
-  def isInLastSegment(i: COORD): Boolean = i._2 == currentSegment
+  @volatile private var currentSegment: Short = 0
+  
+  def isInCurrentSegment(p: COORD): Boolean = p._2 == currentSegment
 
   def iterator: Iterator[Segment] = segments.synchronized(segments.iterator.asScala.toList).iterator
 
-  def sizeOf(i: COORD): Int = segments.get(i._2).sizeOf(i._3)
+  def sizeOf(p: COORD): Int = segments.get(p._2).sizeOf(p._3)
 
-  def getBlock[X](i: COORD, mapper: ByteBuffer => X): X = {
-    segments.get(i._2).get(i._3, mapper)
-  }
+  def getBlock[X](p: COORD, mapper: ByteBuffer => X): X = segments.get(p._2).get(p._3, mapper)
 
   def removeBlock(coord: COORD) = segments.get(coord._2).remove(coord._3)
 
+  def dropFirstSegments(nSegmentsToRemove: Int): Unit = if (nSegmentsToRemove > 0) segments.synchronized {
+    for(s <- 1 to nSegmentsToRemove) segments.removeFirst
+  }
+
+  private def newSegmentInstance = new SegmentDirectMemoryLZ4(segmentSizeMb, compressMinBlockSize)
   private[logmap] def createNewSegment: Short = segments.synchronized {
     for(s <- 0 to segments.size-1) {
-      if (segments.get(s).size == 0) { //reuse segment that was compacted-out
+      if (segments.get(s).size == 0) {
         currentSegment = s.toShort
         return currentSegment
       }
     }
-    segments.add(new SegmentDirectMemoryLZ4(segmentSizeMb, compressMinBlockSize))
+    segmentAllocCallback(segmentSizeMb * 1024 * 1024)
+    segments.add(newSegmentInstance)
     currentSegment = (segments.size - 1).toShort
     return currentSegment
   }
 
   def compact = {
+    //TODO if there are 2 segments with load < 0.5 merge into one of them and recycle the other
     var i = segments.size - 1
     while (i >= 0) {
       val segment = segments.get(i)
@@ -114,21 +115,21 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
     srcSegment.remove(iSrc._3)
   }
 
-  def dealloc(i: COORD): Unit = segments.get(i._2).remove(i._3)
+  def dealloc(p: COORD): Unit = segments.get(p._2).remove(p._3)
 
   def append(key: ByteBuffer, value: ByteBuffer): COORD = {
     if (value.remaining < compressMinBlockSize) {
       //if we know that the value is not going to be compressed, using alloc will lock significantly less
-      val newIndexValue = alloc(value.remaining)
+      val p: COORD = alloc(value.remaining)
       try {
-        segments.get(newIndexValue._2).set(newIndexValue._3, value)
+        segments.get(p._2).set(p._3, value)
+        return p
       } catch {
         case e: Throwable => {
-          dealloc(newIndexValue)
+          dealloc(p)
           throw e
         }
       }
-      newIndexValue
     } else {
       currentSegment match {
         case current: Short => segments.get(current).put(value) match {

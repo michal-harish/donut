@@ -5,13 +5,13 @@ import org.apache.donut.utils.logmap.ConcurrentLogHashMap
 /**
  * Created by mharis on 05/10/15.
  */
-abstract class MemStoreLogMap extends MemStore {
+abstract class MemStoreLogMap(val maxSizeInMb: Int) extends MemStore {
 
-  val map = new ConcurrentLogHashMap(segmentSizeMb = 16)
+  val map = new ConcurrentLogHashMap(maxSizeInMb, segmentSizeMb = 16)
 
   override def size: Long = map.size
 
-  override def minSizeInBytes: Long = map.sizeInBytes
+  override def minSizeInBytes: Long = map.currentSizeInBytes
 
   //TODO MemStoreLogMap after refactoring MemStore interface for zero-copy
 
