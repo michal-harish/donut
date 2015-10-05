@@ -36,13 +36,13 @@ abstract class MemStore {
 
   def put(key: Array[Byte], value: Array[Byte]): Unit
 
-  //def get(key: Array[Byte]): Option[Array[Byte]]
+  def get(key: Array[Byte]): Option[Array[Byte]]
 
-//  def get(key: ByteBuffer): Option[Array[Byte]] = {
-//    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
-//    get(keyBytes)
-//  }
-  def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X) : X
+  def get(key: ByteBuffer): Option[Array[Byte]] = {
+    val keyBytes = java.util.Arrays.copyOfRange(key.array, key.arrayOffset, key.arrayOffset + key.remaining)
+    get(keyBytes)
+  }
+//TODO zero-copy work => def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X) : X
 
   def remove(key: Array[Byte]): Option[Array[Byte]]
 
