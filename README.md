@@ -43,6 +43,7 @@ This example application lives in a separate repository [GraphStream](https://gi
 
 
 Each component of a pipeline has to be configured by at least the following parameters. Some of these will typically be shared across multiple components of the pipeline which can be loaded from the environment and some will be decisions made by the component implementation, e.g. kafka.brokers will be most likely same for all components but only long-running streaming components will need restart.containers=true,...
+
 paramter                        | default       | description
 --------------------------------|---------------|------------------------------------------------------------------------------
 **group.id**                    | -             | Consumer group for the total set of all kafka partitions
