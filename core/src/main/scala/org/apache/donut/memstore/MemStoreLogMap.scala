@@ -31,5 +31,5 @@ class MemStoreLogMap(val maxSizeInMb: Int) extends MemStore {
 
   override def put(key: ByteBuffer, value: ByteBuffer): Unit = map.put(key, value)
 
-
+  override def compressRatio: Double = map.compressRatio
 }

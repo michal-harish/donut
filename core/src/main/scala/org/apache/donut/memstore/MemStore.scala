@@ -32,6 +32,8 @@ abstract class MemStore {
 
   def minSizeInBytes: Long
 
+  def compressRatio: Double
+
   def contains(key: ByteBuffer): Boolean
 
   final def get(key: ByteBuffer): Option[ByteBuffer] = get(key, b => b)
