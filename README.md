@@ -50,8 +50,10 @@ paramter                        | default       | description
 **topics**                      | -             | Coma-separated list of kafka topics to subscribe to
 **cogroup**                     | false         | If set to `false` the number of logical partitions is defined by the topic with the highest number of partitions. If set to `true` the number of logical partitions will be the Highest Common Factor of the number of partitions in each subscribed topic.  
 **max.tasks**                   | -             | If set, maximum number of logical partitions - applies also in cogrouped mode 
-**task.memory.mb**              | 1024          | Memory to allocate for each processing unit in YARN context
+**direct.memory.mb**            | 0             | TOTAL DIRECT MEMORY required from YARN cluster to be split between tasks - number of tasks depends on topics partitioning and cogroup and max.tasks arguments
+**task.overhead.memory.mb**     | 256           | Extra heap memory for each task
 **task.priority**               | 0             | Memory to allocate for each processing unit in YARN context [0-10]
+**task.jvm.args**               | -             | Extra JVM arguments besides the main memory which is managed under the hood as calculated from direct and ovehread memory as defined above
 **kafka.brokers**               | -             | Coma-separated list of kafka broker addresses 
 *yarn1.restart.enabled*         | `false`       | If set to `true` any failed container will be automatically restarted.
 *yarn1.restart.failed.retries*  | 5             | If restart.enabled is `true` any container that completes with non-zero exit status more than `failed.retries` time will cause the entire application to fail

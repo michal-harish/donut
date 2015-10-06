@@ -33,7 +33,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
   behavior of "ConcurrentLogHashMap"
 
   it should "be consistent and fast in a single-threaded context" in {
-    val m = new ConcurrentLogHashMap(maxSizeInMb = 10, segmentSizeMb = 1)
+    val m = new ConcurrentLogHashMap(maxSizeInMb = 10, segmentSizeMb = 1, compressMinBlockSize = 4096)
     val a = ByteBuffer.wrap("123456".getBytes)
     m.put(a, ByteBuffer.wrap("Hello".getBytes))
     m.put(a, ByteBuffer.wrap("Hello".getBytes))
@@ -48,7 +48,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
   }
 
   it should "behave consistently and perform in a multi-threaded context" in {
-    val m = new ConcurrentLogHashMap(maxSizeInMb = 64, segmentSizeMb = 16)
+    val m = new ConcurrentLogHashMap(maxSizeInMb = 64, segmentSizeMb = 16, compressMinBlockSize = 4096)
     val words = List("Hello", "World", "Foo", "Bar")
     val numWords = 100
     val stepFactor = 9997

@@ -49,11 +49,14 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  *
  */
 
-class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
+class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val compressMinBlockSize: Int) {
 
-  //TODO split compaction into asynchronous part for internal segment compaction and synchronous for merging and recycling segments
-  //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
-  //FIXME def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need to implement the underlying hashtable iterators with logical offset instead of hashPos and validate against the index here
+  //TODO split compaction into asynchronous part for internal segment compaction and synchronous for merging
+  // and recycling segments
+  //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into
+  // ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
+  //FIXME def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need
+  // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate against the index
 
   val maxSizeInBytes = maxSizeInMb * 1024 * 1024
 
@@ -63,7 +66,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int) {
   private val indexReader = indexLock.readLock
   private val indexWriter = indexLock.writeLock
 
-  private[logmap] val catalog = new ConcurrentSegmentCatalog(segmentSizeMb, compressMinBlockSize = 4096, (onAllocateSegment: Int) => {
+  private[logmap] val catalog = new ConcurrentSegmentCatalog(segmentSizeMb, compressMinBlockSize, (onAllocateSegment: Int) => {
     if (currentSizeInBytes + onAllocateSegment > maxSizeInBytes) {
       compact(makeAvailableNumBytes = onAllocateSegment)
     }

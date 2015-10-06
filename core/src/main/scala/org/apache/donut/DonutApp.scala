@@ -39,7 +39,9 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
   val kafkaUtils: KafkaUtils = new KafkaUtils(config)
   val topics = config.getProperty("topics").split(",").toSeq
   val groupId = config.getProperty("group.id")
-  val taskMemoryMb: Int = config.getProperty("task.memory.mb", "1024").toInt
+  val directMemoryMb = config.getProperty("direct.memory.mb", "0").toInt
+  val taskHeapMemMb = config.getProperty("task.overhead.memory.mb", "256").toInt
+  val taskJvmArgs = config.getProperty("task.jvm.args", "")
   val taskPriority: Int = config.getProperty("task.priority", "0").toInt
   val updateFrequencyMs = TimeUnit.SECONDS.toMillis(30)
 
@@ -49,7 +51,7 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
 
   final def runLocally(testOnlyOnePartition: Boolean): Unit = {
     try {
-      numLogicalPartitions = KafkaUtils(config).getNumLogicalPartitions(topics)
+      numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
       val taskConstructor: Constructor[T] = taskClass.getConstructor(
         classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
       val executor = Executors.newFixedThreadPool(numLogicalPartitions)
@@ -76,6 +78,8 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
 
   final def runOnYarn(awaitCompletion: Boolean): Unit = {
     try {
+      val taskDirectMemMb = directMemoryMb / kafkaUtils.getNumLogicalPartitions(topics)
+      config.setProperty("yarn1.jvm.args", s"-XX:MaxDirectMemorySize=${taskDirectMemMb}m -Xmx${taskHeapMemMb}m -Xms${taskHeapMemMb}m -XX:+UseSerialGC ${taskJvmArgs}")
       YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), awaitCompletion)
     } catch {
       case e: Throwable => {
@@ -90,9 +94,10 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
    */
   final protected override def onStartUp(args: Array[String]): Unit = {
     numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
+    val taskDirectMemMb = directMemoryMb / numLogicalPartitions
     requestContainerGroup((0 to numLogicalPartitions - 1).map(lp => {
       val args: Array[String] = Array(taskClass.getName, lp.toString, numLogicalPartitions.toString) ++ topics
-      new YarnContainerRequest(DonutYarnContainer.getClass, args, taskPriority, taskMemoryMb, 1)
+      new YarnContainerRequest(DonutYarnContainer.getClass, args, taskPriority, (taskHeapMemMb + taskDirectMemMb), 1)
     }).toArray)
   }
 
