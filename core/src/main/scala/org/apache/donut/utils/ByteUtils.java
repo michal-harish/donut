@@ -25,7 +25,7 @@ public class ByteUtils {
 
     public static byte[] bufToArray(ByteBuffer b) {
         if (b.hasArray()) {
-            if (b.position() == 0 && b.limit() == b.capacity()) {
+            if (b.position() == 0 && b.arrayOffset() == 0 && b.limit() == b.capacity()) {
                 return b.array();
             } else {
                 return Arrays.copyOfRange(b.array(), b.arrayOffset(), b.arrayOffset() + b.remaining());
