@@ -83,24 +83,24 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     })
     e.shutdown
     if (!e.awaitTermination(10, TimeUnit.SECONDS)) {
-      throw new TimeoutException(s"${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+      throw new TimeoutException(s"${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
     }
 
     println(s"input count ${counter.get}, ${time.get} ms")
-    println(s"PUT ALL > ${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+    println(s"PUT ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
     m.size should be (counter.get)
     m.compressRatio should be (1.0)
 
     getAll
     getAll
     m.compact
-    println(s"COMPACT > ${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
-    m.currentSizeInBytes should be <= (m.maxSizeInBytes)
+    println(s"COMPACT > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
+    m.sizeInBytes should be <= (m.maxSizeInBytes)
 
     putMoreThanMaxAllowed
     println(s"EXTRA PUT ${counter.get}")
-    println(s"PUT MORE> ${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
-    m.currentSizeInBytes should be <= (m.maxSizeInBytes)
+    println(s"PUT MORE> ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
+    m.sizeInBytes should be <= (m.maxSizeInBytes)
     m.size should be < (counter.get)
 
     def putMoreThanMaxAllowed = {
@@ -134,7 +134,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
           }) should be(expectedValue)
         }
       }
-      println(s"GET ALL > ${m.numSegments} SEGMENTS: size = ${m.currentSizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}")
+      println(s"GET ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
     }
   }
 

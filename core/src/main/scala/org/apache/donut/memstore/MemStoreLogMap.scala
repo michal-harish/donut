@@ -13,7 +13,7 @@ class MemStoreLogMap(val maxSizeInMb: Int) extends MemStore {
 
   override def size: Long = map.size
 
-  override def sizeInBytes: Long = map.currentSizeInBytes
+  override def sizeInBytes: Long = map.sizeInBytes
 
   override def compressRatio: Double = map.compressRatio
 

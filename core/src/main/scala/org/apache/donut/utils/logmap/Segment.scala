@@ -37,6 +37,8 @@ trait Segment {
 
   def compact: Boolean
 
+  def recycle: Unit
+
   /**
    * @return number of elements in the segment
    */

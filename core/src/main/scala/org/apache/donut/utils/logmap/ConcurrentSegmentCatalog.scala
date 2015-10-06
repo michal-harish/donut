@@ -29,8 +29,8 @@ import scala.collection.JavaConverters._
  */
 class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize: Int, segmentAllocCallback: (Int) => Unit) extends AnyRef {
 
-  //TODO last access timestamp associated with each segment
-  //TODO background thread for compaction with some basic configuration
+  //TODO introduce HashMap[Short, Short] as segment index so that no segments have to be ever removed only recycled
+  // and re-indexing will be only required when merging segments
   /**
    * COORD is a Coordinate type, essentially a pointer a segments[Short].blocks[Int] while the Boolean is a transit flag
    * signifying that another thread is changing the coordinates of the given block - used for concurrent touch operation, see get[X]
@@ -72,13 +72,17 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
   }
 
   def compact = {
-    //TODO if there are 2 segments with load < 0.5 merge into one of them and recycle the other
     var i = segments.size - 1
     while (i >= 0) {
       val segment = segments.get(i)
       segment.compact
       i -= 1
     }
+  }
+
+  def compress = {
+    //TODO if there are 2 segments with load < 0.5 merge into one of them and recycle the other
+    //TODO either run this by a background thread here, or call it by the LogMap's background thread
   }
 
   /**

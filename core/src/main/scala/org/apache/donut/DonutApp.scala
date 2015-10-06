@@ -78,8 +78,6 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
 
   final def runOnYarn(awaitCompletion: Boolean): Unit = {
     try {
-      val taskDirectMemMb = directMemoryMb / kafkaUtils.getNumLogicalPartitions(topics)
-      config.setProperty("yarn1.jvm.args", s"-XX:MaxDirectMemorySize=${taskDirectMemMb}m -Xmx${taskHeapMemMb}m -Xms${taskHeapMemMb}m -XX:+UseSerialGC ${taskJvmArgs}")
       YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), awaitCompletion)
     } catch {
       case e: Throwable => {
@@ -97,7 +95,7 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
     val taskDirectMemMb = directMemoryMb / numLogicalPartitions
     requestContainerGroup((0 to numLogicalPartitions - 1).map(lp => {
       val args: Array[String] = Array(taskClass.getName, lp.toString, numLogicalPartitions.toString) ++ topics
-      new YarnContainerRequest(DonutYarnContainer.getClass, args, taskPriority, (taskHeapMemMb + taskDirectMemMb), 1)
+      new YarnContainerRequest(DonutYarnContainer.getClass, args, taskPriority, taskDirectMemMb, taskHeapMemMb, 1)
     }).toArray)
   }
 

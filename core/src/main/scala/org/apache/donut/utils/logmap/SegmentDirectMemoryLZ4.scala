@@ -93,14 +93,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     synchronized {
       index.put(-1, position)
       counter -= 1
-      if (size == 0) {
-        //println(s"Recycling segment with capacity ${memory.capacity} bytes")
-        valid = true
-        uncompressedSizeInBytes.set(0)
-        maxBlockSize.set(0)
-        index.clear
-        memory.clear
-      }
+      if (size == 0) recycle
     }
   }
 
@@ -361,4 +354,19 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     }
   }
 
+  override def recycle: Unit = {
+    compactionLock.writeLock.lock
+    try {
+      synchronized {
+        //println(s"Recycling segment with capacity ${memory.capacity} bytes")
+        valid = true
+        uncompressedSizeInBytes.set(0)
+        maxBlockSize.set(0)
+        index.clear
+        memory.clear
+      }
+    } finally {
+      compactionLock.writeLock.unlock
+    }
+  }
 }

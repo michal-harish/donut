@@ -51,8 +51,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 
 class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val compressMinBlockSize: Int) {
 
-  //TODO split compaction into asynchronous part for internal segment compaction and synchronous for merging
-  // and recycling segments
   //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into
   // ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
   //FIXME def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need
@@ -67,8 +65,9 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
   private val indexWriter = indexLock.writeLock
 
   private[logmap] val catalog = new ConcurrentSegmentCatalog(segmentSizeMb, compressMinBlockSize, (onAllocateSegment: Int) => {
-    if (currentSizeInBytes + onAllocateSegment > maxSizeInBytes) {
-      compact(makeAvailableNumBytes = onAllocateSegment)
+    if (sizeInBytes + onAllocateSegment > maxSizeInBytes) {
+      compact
+      freeSpace(makeAvailableNumBytes = onAllocateSegment)
     }
   })
 
@@ -76,15 +75,17 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
 
   def size: Int = catalog.iterator.map(_.size).sum
 
+  def compact: Unit = catalog.compact
+
   def compressRatio: Double = catalog.iterator.map(_.compressRatio).toSeq match {
     case r => if (r.size == 0) 0 else (r.sum / r.size)
   }
 
-  def currentSizeInBytes: Long = catalog.iterator.map(_.capacityInBytes.toLong).sum + index.sizeInBytes
+  def sizeInBytes: Long = catalog.iterator.map(_.capacityInBytes.toLong).sum + index.sizeInBytes
 
-  def load: Double = catalog.iterator.map(_.sizeInBytes.toLong).sum.toDouble / currentSizeInBytes
+  def freeBytes: Long = (sizeInBytes * (1.0 - load)).toLong
 
-  def compact: Unit = compact(0)
+  def load: Double = catalog.iterator.map(_.sizeInBytes.toLong).sum.toDouble / sizeInBytes
 
   def contains(key: ByteBuffer): Boolean = {
     indexReader.lock
@@ -182,12 +183,13 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
     }
   }
 
-  def compact(makeAvailableNumBytes: Int): Unit = {
+  def freeSpace(makeAvailableNumBytes: Int): Unit = {
+    //FIXME the order is not correct here, re-indexing can be however removed after catalog has its own stable segment index
     catalog.compact
-    if (currentSizeInBytes + makeAvailableNumBytes > maxSizeInBytes) {
+    if (sizeInBytes + makeAvailableNumBytes > maxSizeInBytes) {
       indexWriter.lock
       try {
-        var bytesToRemove = currentSizeInBytes + makeAvailableNumBytes - maxSizeInBytes
+        var bytesToRemove = sizeInBytes + makeAvailableNumBytes - maxSizeInBytes
         var nSegmentsToRemove = 0
         catalog.iterator.zipWithIndex.foreach { case (segment, s) => {
           if (bytesToRemove > 0) {
