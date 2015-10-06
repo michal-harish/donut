@@ -108,12 +108,10 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
     executor.shutdown
     try {
       while (!executor.isTerminated) {
-        if (Thread.interrupted) throw new InterruptedException
         fetcherMonitor.synchronized {
           fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(30))
         }
         if (fetcherMonitor.get != null) {
-          executor.shutdownNow
           throw new Exception(s"Error in task for logical partition ${logicalPartition}", fetcherMonitor.get)
         }
         awaitingTermination
@@ -121,9 +119,11 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
     } catch {
       case e: Throwable => {
         log.error("Task terminated with error", e)
+        executor.shutdown
         throw e
       }
     } finally {
+      executor.awaitTermination(1, TimeUnit.SECONDS)
       onShutdown
     }
   }

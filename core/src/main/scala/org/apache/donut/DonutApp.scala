@@ -47,15 +47,18 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
   private var lastProgress: (Long, Float) = (-1, 0f)
 
 
-  final def runLocally(multiThreadMode: Boolean): Unit = {
+  final def runLocally(testOnlyOnePartition: Boolean): Unit = {
     try {
-      numLogicalPartitions = if (!multiThreadMode) 1 else KafkaUtils(config).getNumLogicalPartitions(topics)
+      numLogicalPartitions = KafkaUtils(config).getNumLogicalPartitions(topics)
       val taskConstructor: Constructor[T] = taskClass.getConstructor(
         classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
       val executor = Executors.newFixedThreadPool(numLogicalPartitions)
-      (0 to numLogicalPartitions - 1).foreach(lp => {
+      if (testOnlyOnePartition) {
+        executor.submit(taskConstructor.newInstance(config, new Integer(0), new Integer(numLogicalPartitions), topics))
+      } else (0 to numLogicalPartitions - 1).foreach(lp => {
         executor.submit(taskConstructor.newInstance(config, new Integer(lp), new Integer(numLogicalPartitions), topics))
       })
+
       executor.shutdown
       while (true) {
         if (executor.awaitTermination(updateFrequencyMs, TimeUnit.MILLISECONDS)) {
