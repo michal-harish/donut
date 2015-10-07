@@ -29,7 +29,7 @@ class MemStoreTest extends FlatSpec with Matchers {
 
   implicit def stringAsBytes(s: String): ByteBuffer = ByteBuffer.wrap(s.getBytes)
 
-  //TODO behavior of "MemStoreLog"
+  behavior of "MemStoreLog"
   it should "behave as expected" in {
     val st = new MemStoreLogMap(maxSizeInMb = 1024)
     test(st)

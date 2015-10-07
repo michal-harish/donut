@@ -67,25 +67,27 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
   private[logmap] val catalog = new ConcurrentSegmentCatalog(segmentSizeMb, compressMinBlockSize, (onAllocateSegment: Int) => {
     if (sizeInBytes + onAllocateSegment > maxSizeInBytes) {
       compact
-      freeSpace(makeAvailableNumBytes = onAllocateSegment)
+      makeAvailableNumBytes(onAllocateSegment)
     }
   })
 
   def numSegments = catalog.iterator.size
 
-  def size: Int = catalog.iterator.map(_.size).sum
+  def size: Int = catalog.iterator.map(_._2.size).sum
 
   def compact: Unit = catalog.compact
 
-  def compressRatio: Double = catalog.iterator.map(_.compressRatio).toSeq match {
+  def applyCompression(ratio: Double): Unit = catalog.compress(maxSizeInMb, ratio)
+
+  def compressRatio: Double = catalog.iterator.map(_._2.compressRatio).toSeq match {
     case r => if (r.size == 0) 0 else (r.sum / r.size)
   }
 
-  def sizeInBytes: Long = catalog.iterator.map(_.capacityInBytes.toLong).sum + index.sizeInBytes
+  def sizeInBytes: Long = catalog.iterator.map(_._2.capacityInBytes.toLong).sum + index.sizeInBytes
 
   def freeBytes: Long = (sizeInBytes * (1.0 - load)).toLong
 
-  def load: Double = catalog.iterator.map(_.sizeInBytes.toLong).sum.toDouble / sizeInBytes
+  def load: Double = catalog.iterator.map(_._2.sizeInBytes.toLong).sum.toDouble / sizeInBytes
 
   def contains(key: ByteBuffer): Boolean = {
     indexReader.lock
@@ -183,29 +185,28 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
     }
   }
 
-  def freeSpace(makeAvailableNumBytes: Int): Unit = {
-    //FIXME the order is not correct here, re-indexing can be however removed after catalog has its own stable segment index
+  def makeAvailableNumBytes(numBytes: Int): Unit = {
     catalog.compact
-    if (sizeInBytes + makeAvailableNumBytes > maxSizeInBytes) {
+    if (sizeInBytes + numBytes > maxSizeInBytes) {
       indexWriter.lock
       try {
-        var bytesToRemove = sizeInBytes + makeAvailableNumBytes - maxSizeInBytes
-        var nSegmentsToRemove = 0
-        catalog.iterator.zipWithIndex.foreach { case (segment, s) => {
+        var bytesToRemove = sizeInBytes + numBytes - maxSizeInBytes
+        var segmentsRemoved = new scala.collection.mutable.HashSet[Short]()
+        catalog.iterator.foreach { case (s, segment) => {
           if (bytesToRemove > 0) {
             bytesToRemove -= segment.capacityInBytes
-            nSegmentsToRemove += 1
+            segmentsRemoved += s
+            catalog.recycleSegment(s)
           }
         }
         }
-        if (nSegmentsToRemove > 0) {
-          index.update((v: COORD) => {
-            v._2 match {
-              case s if (s < nSegmentsToRemove) => null
-              case segment => (v._1, (segment - nSegmentsToRemove).toShort, v._3)
+        if (segmentsRemoved.size > 0) {
+          index.update((pointer: COORD) => {
+            pointer._2 match {
+              case removedSegment if (segmentsRemoved.contains(removedSegment)) => null
+              case retainedSegment => pointer
             }
           })
-          catalog.dropOldestSegments(nSegmentsToRemove)
         }
       } finally {
         indexWriter.unlock

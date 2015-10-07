@@ -48,7 +48,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
   }
 
   it should "behave consistently and perform in a multi-threaded context" in {
-    val m = new ConcurrentLogHashMap(maxSizeInMb = 64, segmentSizeMb = 16, compressMinBlockSize = 4096)
+    val m = new ConcurrentLogHashMap(maxSizeInMb = 64, segmentSizeMb = 16, compressMinBlockSize = 16 * 1024)
     val words = List("Hello", "World", "Foo", "Bar")
     val numWords = 100
     val stepFactor = 9997
@@ -59,6 +59,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     (1 to numThreads).foreach(t => {
       e.submit(new Runnable() {
         val digest = MessageDigest.getInstance("MD5")
+
         override def run(): Unit = {
           try {
             val input = ((t * stepFactor) to ((t + 1) * stepFactor - 1)).map(i => (
@@ -83,25 +84,32 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     })
     e.shutdown
     if (!e.awaitTermination(10, TimeUnit.SECONDS)) {
-      throw new TimeoutException(s"${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
+      throw new TimeoutException(s"${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
     }
 
     println(s"input count ${counter.get}, ${time.get} ms")
-    println(s"PUT ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
-    m.size should be (counter.get)
-    m.compressRatio should be (1.0)
+    println(s"PUT ALL > ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
+    m.size should be(counter.get)
+    m.compressRatio should be(1.0)
 
     getAll
     getAll
     m.compact
-    println(s"COMPACT > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
+    println(s"COMPACT > ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
     m.sizeInBytes should be <= (m.maxSizeInBytes)
+    m.compressRatio should be(1.0)
+
+    m.applyCompression(1.0)
+    println(s"COMPRESS > ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
+
+    m.compressRatio should be < (0.4)
 
     putMoreThanMaxAllowed
     println(s"EXTRA PUT ${counter.get}")
-    println(s"PUT MORE> ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
+    println(s"PUT MORE> ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
     m.sizeInBytes should be <= (m.maxSizeInBytes)
     m.size should be < (counter.get)
+    m.size should be > 100000
 
     def putMoreThanMaxAllowed = {
       val digest = MessageDigest.getInstance("MD5")
@@ -112,9 +120,6 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
       counter.addAndGet(input.size)
       val ts = System.currentTimeMillis
       input.foreach { case (key, value) => {
-        if (ByteUtils.asIntValue(key.array) == Int.MinValue) {
-          println("!!")
-        }
         m.put(key, value)
       }
       }
@@ -134,7 +139,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
           }) should be(expectedValue)
         }
       }
-      println(s"GET ALL > ${m.numSegments} SEGMENTS: size = ${m.sizeInBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, free = ${m.freeBytes / 1024} Kb")
+      println(s"GET ALL > ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
     }
   }
 

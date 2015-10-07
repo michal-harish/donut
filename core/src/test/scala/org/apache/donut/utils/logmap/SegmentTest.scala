@@ -21,6 +21,7 @@ package org.apache.donut.utils.logmap
 import java.nio.ByteBuffer
 import java.util.concurrent.{Executors, TimeUnit, TimeoutException}
 
+import net.jpountz.lz4.LZ4Factory
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.Random
@@ -31,9 +32,27 @@ import scala.util.Random
 
 class SegmentTest extends FlatSpec with Matchers {
 
+  behavior of "LZ4 library"
+  it should "be able to compress over the source byte buffer" in {
+    val str = (0 to 10).map(_ => "The quick brown fox jumps over the lazy dog").mkString(".")
+    val b = ByteBuffer.wrap(str.getBytes)
+    println(s"source: $b}")
+    val c = ByteBuffer.allocate(str.length)
+    val compressor = LZ4Factory.fastestInstance.highCompressor
+    println(s"dest: $c, max = ${compressor.maxCompressedLength(str.length)}}")
+    compressor.compress(b, c)
+    c.flip
+    println(s"compressed: $c}")
+    new String(c.array) should not be (str)
+    val decompressor = LZ4Factory.fastestInstance.fastDecompressor
+    val d = ByteBuffer.allocate(str.length)
+    decompressor.decompress(c, d)
+    new String(d.array) should be(str)
+  }
+
   behavior of "SegmentDirectMemoryLZ4"
 
-  it should "not regress in single-threaded context" in {
+  it should "be consistent in a single-threaded context" in {
     val segment = new SegmentDirectMemoryLZ4(capacityMb = 1, compressMinBlockSize = 10240)
 
     segment.compressRatio should be(1.0)
@@ -52,37 +71,76 @@ class SegmentTest extends FlatSpec with Matchers {
     segment.get(0).compareTo(testBlock) should be(0)
     segment.get(0).compareTo(testBlock) should be(0)
 
-    segment.compressRatio should be < (0.7)
+    segment.compressRatio should be < (0.85)
 
-    segment.sizeInBytes should be < (25000)
+    segment.sizeInBytes should be < (40000)
 
     segment.put(testBlock, 0) should be(0)
 
-    segment.sizeInBytes should be > (25000)
+    segment.sizeInBytes should be > (40000)
 
-    segment.compressRatio should be < (0.7)
+    segment.compressRatio should be < (0.85)
 
     segment.get(0).compareTo(testBlock) should be(0)
 
-    segment.compact
+    segment.compact should be(true)
 
-    segment.sizeInBytes should be < (25000)
+    segment.sizeInBytes should be < (40000)
 
-    segment.compressRatio should be < (0.7)
+    segment.compressRatio should be < (0.85)
 
     segment.remove(0)
 
-    an [ArrayIndexOutOfBoundsException] should be thrownBy(segment.get(0))
+    an[ArrayIndexOutOfBoundsException] should be thrownBy (segment.get(0))
 
-    segment.sizeInBytes should be (0)
+    segment.sizeInBytes should be(23106) //the lz4 buffer still occupies memory
+  }
 
-    segment.compressRatio should be (1.0)
-
-    segment.compact
-
-    segment.sizeInBytes should be (0)
+  it should "group multiple blocks into a single lz4block of min size" in {
+    val segment = new SegmentDirectMemoryLZ4(capacityMb = 1, compressMinBlockSize = 65535 * 2)
 
     segment.compressRatio should be(1.0)
+
+    val testArray = new Array[Byte](10485 - 9)
+    val random = new Random
+    random.nextBytes(testArray)
+    for (i <- (0 to (testArray.length - 1) / 3)) {
+      testArray(i * 3) = 0
+      testArray(i * 3 + 1) = 0
+    }
+    val testBlock = ByteBuffer.wrap(testArray)
+
+
+    val numEntries = 100
+    for (p <- (0 to numEntries - 1)) {
+      segment.put(testBlock) should be(p)
+    }
+    println(s"${numEntries} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+    segment.compressRatio should be(1.0)
+
+    //no more entries can fit
+    segment.put(testBlock) should be(-1)
+
+    for (p <- (0 to numEntries - 1)) {
+      segment.get(p) should be(testBlock)
+    }
+    println(s"${numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+    segment.compress
+    println(s"COMPRESS > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+
+    segment.compressRatio should be < (0.2)
+
+    //after compression we should be able to fit more blocks in
+    for (p <- (0 to numEntries / 2 - 1)) {
+      segment.put(testBlock) should be(numEntries + p)
+    }
+    println(s"${numEntries / 2} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+
+    for (p <- (0 to numEntries + (numEntries / 2) - 1)) {
+      segment.get(p) should be(testBlock)
+    }
+    println(s"${1.5 * numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+
   }
 
   it should "perform well in a multi-threaded context" in {

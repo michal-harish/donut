@@ -37,6 +37,8 @@ trait Segment {
 
   def compact: Boolean
 
+  def compress: Boolean
+
   def recycle: Unit
 
   /**

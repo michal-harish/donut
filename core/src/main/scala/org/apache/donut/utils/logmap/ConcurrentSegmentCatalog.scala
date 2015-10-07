@@ -29,23 +29,26 @@ import scala.collection.JavaConverters._
  */
 class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize: Int, segmentAllocCallback: (Int) => Unit) extends AnyRef {
 
-  //TODO introduce HashMap[Short, Short] as segment index so that no segments have to be ever removed only recycled
-  // and re-indexing will be only required when merging segments
+  private def newSegmentInstance = new SegmentDirectMemoryLZ4(segmentSizeMb, compressMinBlockSize)
+
+  private val index = new java.util.ArrayList[Short]
+
+  @volatile private var currentSegment: Short = 0
+
+  private val segments = new java.util.ArrayList[Segment]() {
+    add(newSegmentInstance)
+    index.add(0)
+  }
+
   /**
    * COORD is a Coordinate type, essentially a pointer a segments[Short].blocks[Int] while the Boolean is a transit flag
    * signifying that another thread is changing the coordinates of the given block - used for concurrent touch operation, see get[X]
    */
   type COORD = (Boolean, Short, Int)
 
-  private val segments = new java.util.LinkedList[Segment]() {
-    add(newSegmentInstance)
-  }
-
-  @volatile private var currentSegment: Short = 0
-  
   def isInCurrentSegment(p: COORD): Boolean = p._2 == currentSegment
 
-  def iterator: Iterator[Segment] = segments.synchronized(segments.iterator.asScala.toList).iterator
+  def iterator: Iterator[(Short,Segment)] = segments.synchronized(index.asScala.map(s => (s, segments.get(s)))).iterator
 
   def sizeOf(p: COORD): Int = segments.get(p._2).sizeOf(p._3)
 
@@ -53,37 +56,42 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def markForDeletion(coord: COORD) = segments.get(coord._2).remove(coord._3)
 
-  def dropOldestSegments(nSegmentsToRemove: Int): Unit = if (nSegmentsToRemove > 0) segments.synchronized {
-    for(s <- 1 to nSegmentsToRemove) segments.removeFirst
-  }
-
-  private def newSegmentInstance = new SegmentDirectMemoryLZ4(segmentSizeMb, compressMinBlockSize)
   private[logmap] def createNewSegment: Short = segments.synchronized {
     for(s <- 0 to segments.size-1) {
       if (segments.get(s).size == 0) {
         currentSegment = s.toShort
+        index.remove(currentSegment.asInstanceOf[Object])
+        index.add(currentSegment)
         return currentSegment
       }
     }
     segmentAllocCallback(segmentSizeMb * 1024 * 1024)
     segments.add(newSegmentInstance)
     currentSegment = (segments.size - 1).toShort
+    index.add(currentSegment)
     return currentSegment
   }
 
   def compact = {
-    var i = segments.size - 1
-    while (i >= 0) {
-      val segment = segments.get(i)
-      segment.compact
-      i -= 1
+    for (s <- 0 to (segments.size - 1)) segments.get(s).compact
+    //TODO if there are 2 segments with load < 0.5 merge into one of them and recycle the other
+  }
+
+  def compress(maxCapacityMb: Long, compressedFraction: Double) = segments.synchronized {
+    val maxNumSegments = maxCapacityMb / segmentSizeMb
+    val maxNumCompressedSegments = (maxNumSegments * compressedFraction).toInt
+    for (i <- 0 to maxNumCompressedSegments - 1) segments.synchronized {
+      if (i < segments.size) segments.get(index.get(i)).compress
     }
   }
 
-  def compress = {
-    //TODO if there are 2 segments with load < 0.5 merge into one of them and recycle the other
-    //TODO either run this by a background thread here, or call it by the LogMap's background thread
+  def recycleSegment(s: Short): Unit = segments.synchronized {
+    if (s != currentSegment) {
+      index.remove(s.asInstanceOf[Object])
+      segments.get(s).recycle
+    }
   }
+
 
   /**
    * Warning: This is a dangerous method that can lead to memory leak if not used properly.
