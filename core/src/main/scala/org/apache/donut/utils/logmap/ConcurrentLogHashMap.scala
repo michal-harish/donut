@@ -77,7 +77,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
 
   def compact: Unit = catalog.compact
 
-  def applyCompression(ratio: Double): Unit = catalog.compress(maxSizeInMb, ratio)
+  def applyCompression(fraction: Double): Unit = catalog.compress(maxSizeInMb, fraction)
 
   def compressRatio: Double = catalog.iterator.map(_._2.compressRatio).toSeq match {
     case r => if (r.size == 0) 0 else (r.sum / r.size)
@@ -93,6 +93,18 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
     indexReader.lock
     try {
       index.contains(key)
+    } finally {
+      indexReader.unlock
+    }
+  }
+
+  def seek[X](key: ByteBuffer, mapper: (ByteBuffer => X)): X = {
+    indexReader.lock
+    try {
+      index.get(key) match {
+        case null => null.asInstanceOf[X]
+        case i: COORD => catalog.getBlock(i, mapper)
+      }
     } finally {
       indexReader.unlock
     }
@@ -132,7 +144,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
   }
 
   final def get(key: ByteBuffer): ByteBuffer = get(key, (b: ByteBuffer) => b)
-  
+
   def get[X](key: ByteBuffer, mapper: (ByteBuffer => X)): X = {
     def inTransit(i: COORD) = i._1
 
@@ -166,6 +178,11 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
               indexWriter.unlock
             }
 
+            /* TODO At the moment, if a block is being extracted from a compressed group it will also remain in the
+             * compressed group - what should really happen is that since we're uncompressing the block it would make sense
+             * to first re-store all blocks it contains within the same segment, and then move out the individual block
+             * being touched.
+             */
             catalog.move(oldIndexValue, newIndexValue)
 
             indexReader.unlock

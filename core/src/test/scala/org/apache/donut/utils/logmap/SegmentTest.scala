@@ -32,23 +32,23 @@ import scala.util.Random
 
 class SegmentTest extends FlatSpec with Matchers {
 
-  behavior of "LZ4 library"
-  it should "be able to compress over the source byte buffer" in {
-    val str = (0 to 10).map(_ => "The quick brown fox jumps over the lazy dog").mkString(".")
-    val b = ByteBuffer.wrap(str.getBytes)
-    println(s"source: $b}")
-    val c = ByteBuffer.allocate(str.length)
-    val compressor = LZ4Factory.fastestInstance.highCompressor
-    println(s"dest: $c, max = ${compressor.maxCompressedLength(str.length)}}")
-    compressor.compress(b, c)
-    c.flip
-    println(s"compressed: $c}")
-    new String(c.array) should not be (str)
-    val decompressor = LZ4Factory.fastestInstance.fastDecompressor
-    val d = ByteBuffer.allocate(str.length)
-    decompressor.decompress(c, d)
-    new String(d.array) should be(str)
-  }
+//  behavior of "LZ4 library"
+//  it should "be able to compress over the source byte buffer" in {
+//    val str = (0 to 10).map(_ => "The quick brown fox jumps over the lazy dog").mkString(".")
+//    val b = ByteBuffer.wrap(str.getBytes)
+//    println(s"source: $b}")
+//    val c = ByteBuffer.allocate(str.length)
+//    val compressor = LZ4Factory.fastestInstance.highCompressor
+//    println(s"dest: $c, max = ${compressor.maxCompressedLength(str.length)}}")
+//    compressor.compress(b, c)
+//    c.flip
+//    println(s"compressed: $c}")
+//    new String(c.array) should not be (str)
+//    val decompressor = LZ4Factory.fastestInstance.fastDecompressor
+//    val d = ByteBuffer.allocate(str.length)
+//    decompressor.decompress(c, d)
+//    new String(d.array) should be(str)
+//  }
 
   behavior of "SegmentDirectMemoryLZ4"
 
@@ -66,20 +66,20 @@ class SegmentTest extends FlatSpec with Matchers {
     }
     val testBlock = ByteBuffer.wrap(testArray)
 
-    segment.put(testBlock) should be(0)
+    segment.put(-1, testBlock) should be(0)
 
     segment.get(0).compareTo(testBlock) should be(0)
     segment.get(0).compareTo(testBlock) should be(0)
 
-    segment.compressRatio should be < (0.85)
+    segment.compressRatio should be (1.0)
 
     segment.sizeInBytes should be < (40000)
 
-    segment.put(testBlock, 0) should be(0)
+    segment.put(0, testBlock) should be(0)
 
     segment.sizeInBytes should be > (40000)
 
-    segment.compressRatio should be < (0.85)
+    segment.compressRatio should be (1.0)
 
     segment.get(0).compareTo(testBlock) should be(0)
 
@@ -87,16 +87,17 @@ class SegmentTest extends FlatSpec with Matchers {
 
     segment.sizeInBytes should be < (40000)
 
-    segment.compressRatio should be < (0.85)
+    segment.compressRatio should be (1.0)
 
     segment.remove(0)
 
     an[ArrayIndexOutOfBoundsException] should be thrownBy (segment.get(0))
 
-    segment.sizeInBytes should be(23106) //the lz4 buffer still occupies memory
+    segment.sizeInBytes should be(0)
   }
 
   it should "group multiple blocks into a single lz4block of min size" in {
+    println("Segment LZ4 Compression ...")
     val segment = new SegmentDirectMemoryLZ4(capacityMb = 1, compressMinBlockSize = 65535 * 2)
 
     segment.compressRatio should be(1.0)
@@ -113,13 +114,13 @@ class SegmentTest extends FlatSpec with Matchers {
 
     val numEntries = 100
     for (p <- (0 to numEntries - 1)) {
-      segment.put(testBlock) should be(p)
+      segment.put(-1, testBlock) should be(p)
     }
     println(s"${numEntries} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
     segment.compressRatio should be(1.0)
 
     //no more entries can fit
-    segment.put(testBlock) should be(-1)
+    segment.put(-1, testBlock) should be(-1)
 
     for (p <- (0 to numEntries - 1)) {
       segment.get(p) should be(testBlock)
@@ -129,10 +130,13 @@ class SegmentTest extends FlatSpec with Matchers {
     println(s"COMPRESS > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
 
     segment.compressRatio should be < (0.2)
+    for (p <- (0 to numEntries - 1)) {
+      segment.get(p) should be(testBlock)
+    }
 
     //after compression we should be able to fit more blocks in
     for (p <- (0 to numEntries / 2 - 1)) {
-      segment.put(testBlock) should be(numEntries + p)
+      segment.put(-1, testBlock) should be(numEntries + p)
     }
     println(s"${numEntries / 2} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
 
@@ -152,12 +156,12 @@ class SegmentTest extends FlatSpec with Matchers {
     println("Single-threaded init")
     for(i <- (1 to 25000)) {
       val value = ByteBuffer.wrap((0 to 100).map(x => words(math.abs(random.nextInt) % words.size)).mkString(",").getBytes)
-      s.put(value)
+      s.put(-1, value)
     }
     println(s"size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio} %")
     s.compact should be (false)
-    s.sizeInBytes / 1024 / 1024 should be(10)
-    s.compressRatio should be < (0.9)
+    s.sizeInBytes / 1024 / 1024 should be(12)
+    s.compressRatio should be (1.0)
 
     val numThreads = 4
     println(s"Multi-threaded parallel put & compact, numThreads = ${numThreads}")
@@ -169,7 +173,7 @@ class SegmentTest extends FlatSpec with Matchers {
           try {
             for (i <- (0 to 25000-1)) {
               val value = ByteBuffer.wrap((0 to 100).map(x => words(math.abs(random.nextInt) % words.size)).mkString(",").getBytes)
-              s.put(value, i)
+              s.put(i, value)
               if (i % 10000 == 0) {
                 s.compact
               }
@@ -191,8 +195,8 @@ class SegmentTest extends FlatSpec with Matchers {
     println(s"parallel put & compact > size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio}")
     println(s"parralel put & compact ${System.currentTimeMillis - processTime} ms")
     s.size should be (25000)
-    s.compressRatio should be < (0.9)
-    s.sizeInBytes / 1024 / 1024 should be (10)
+    s.compressRatio should be (1.0)
+    s.sizeInBytes / 1024 / 1024 should be (12)
   }
 
 }

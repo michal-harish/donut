@@ -48,7 +48,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def isInCurrentSegment(p: COORD): Boolean = p._2 == currentSegment
 
-  def iterator: Iterator[(Short,Segment)] = segments.synchronized(index.asScala.map(s => (s, segments.get(s)))).iterator
+  def iterator: Iterator[(Short, Segment)] = segments.synchronized(index.asScala.map(s => (s, segments.get(s)))).iterator
 
   def sizeOf(p: COORD): Int = segments.get(p._2).sizeOf(p._3)
 
@@ -57,7 +57,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
   def markForDeletion(coord: COORD) = segments.get(coord._2).remove(coord._3)
 
   private[logmap] def createNewSegment: Short = segments.synchronized {
-    for(s <- 0 to segments.size-1) {
+    for (s <- 0 to segments.size - 1) {
       if (segments.get(s).size == 0) {
         currentSegment = s.toShort
         index.remove(currentSegment.asInstanceOf[Object])
@@ -81,7 +81,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
     val maxNumSegments = maxCapacityMb / segmentSizeMb
     val maxNumCompressedSegments = (maxNumSegments * compressedFraction).toInt
     for (i <- 0 to maxNumCompressedSegments - 1) segments.synchronized {
-      if (i < segments.size) segments.get(index.get(i)).compress
+      if (i < index.size) segments.get(index.get(i)).compress
     }
   }
 
@@ -95,21 +95,21 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   /**
    * Warning: This is a dangerous method that can lead to memory leak if not used properly.
-   * @param wrappedLength
+   * @param valueSize
    * @return
    */
-  def alloc(wrappedLength: Int): COORD = {
+  def alloc(valueSize: Int): COORD = {
     currentSegment match {
-      case current: Short => segments.get(current).alloc(wrappedLength) match {
+      case current: Short => segments.get(current).alloc(valueSize) match {
         case newBlock if (newBlock >= 0) => (false, current, newBlock)
         case _ => segments.synchronized {
           currentSegment match {
-            case currentChecked => segments.get(currentChecked).alloc(wrappedLength) match {
+            case currentChecked => segments.get(currentChecked).alloc(valueSize) match {
               case newBlock if (newBlock >= 0) => (false, currentChecked, newBlock)
               case _ => {
                 val newSegment = createNewSegment
-                segments.get(newSegment).alloc(wrappedLength) match {
-                  case -1 => throw new IllegalArgumentException(s"Value of length `${wrappedLength}` is bigger than segment size " + segmentSizeMb + " Mb")
+                segments.get(newSegment).alloc(valueSize) match {
+                  case -1 => throw new IllegalArgumentException(s"Value of length `${valueSize}` is bigger than segment size " + segmentSizeMb + " Mb")
                   case newBlock => (false, newSegment, newBlock)
                 }
               }
@@ -120,47 +120,24 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
     }
   }
 
-  def move(iSrc: COORD, iDst: COORD): Unit = {
-    val srcSegment = segments.get(iSrc._2)
-    val dstSegment = segments.get(iDst._2)
-    dstSegment.copy(srcSegment, iSrc._3, iDst._3)
-    srcSegment.remove(iSrc._3)
-  }
+    def move(iSrc: COORD, iDst: COORD): Unit = {
+      val srcSegment = segments.get(iSrc._2)
+      val dstSegment = segments.get(iDst._2)
+      srcSegment.get[Unit](iSrc._3, (b) => dstSegment.set(iDst._3, b))
+      srcSegment.remove(iSrc._3)
+    }
 
   def dealloc(p: COORD): Unit = segments.get(p._2).remove(p._3)
 
   def append(key: ByteBuffer, value: ByteBuffer): COORD = {
-    if (value == null || value.remaining < compressMinBlockSize) {
-      //if we know that the value is not going to be compressed, using alloc will lock significantly less
-      val p: COORD = alloc(if (value == null) 0 else value.remaining)
-      try {
-        segments.get(p._2).set(p._3, value)
-        return p
-      } catch {
-        case e: Throwable => {
-          dealloc(p)
-          throw e
-        }
-      }
-    } else {
-      currentSegment match {
-        case current: Short => segments.get(current).put(value) match {
-          case newBlock if (newBlock >= 0) => (false, current, newBlock)
-          case _ => segments.synchronized {
-            currentSegment match {
-              case currentChecked => segments.get(currentChecked).put(value) match {
-                case newBlock if (newBlock >= 0) => (false, currentChecked, newBlock)
-                case _ => {
-                  val newSegment = createNewSegment
-                  segments.get(newSegment).put(value) match {
-                    case -1 => throw new IllegalArgumentException("Value is bigger than segment size " + segmentSizeMb + " Mb")
-                    case newBlock => (false, newSegment, newBlock)
-                  }
-                }
-              }
-            }
-          }
-        }
+    val p: COORD = alloc(if (value == null) 0 else value.remaining)
+    try {
+      segments.get(p._2).set(p._3, value)
+      return p
+    } catch {
+      case e: Throwable => {
+        dealloc(p)
+        throw e
       }
     }
   }

@@ -22,7 +22,7 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 import java.util.concurrent.{Executors, TimeUnit, TimeoutException}
-import org.apache.donut.utils.ByteUtils
+
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
@@ -92,24 +92,27 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     m.size should be(counter.get)
     m.compressRatio should be(1.0)
 
-    getAll
-    getAll
+    getAll()
+    getAll()
     m.compact
     println(s"COMPACT > ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
     m.sizeInBytes should be <= (m.maxSizeInBytes)
     m.compressRatio should be(1.0)
+    getAll()
 
     m.applyCompression(1.0)
     println(s"COMPRESS > ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
-
     m.compressRatio should be < (0.4)
+    getAll()
 
     putMoreThanMaxAllowed
     println(s"EXTRA PUT ${counter.get}")
     println(s"PUT MORE> ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")
     m.sizeInBytes should be <= (m.maxSizeInBytes)
     m.size should be < (counter.get)
-    m.size should be > 100000
+    m.size should be > 70000
+
+    m.applyCompression(1.0)
 
     def putMoreThanMaxAllowed = {
       val digest = MessageDigest.getInstance("MD5")
@@ -126,17 +129,20 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
       time.addAndGet(System.currentTimeMillis - ts)
     }
 
-    def getAll = {
+    def g = (b: ByteBuffer) => {
+      val a = new Array[Byte](b.remaining)
+      b.get(a)
+      new String(a)
+    }
+
+    def getAll() = {
       val digest = MessageDigest.getInstance("MD5")
       for (t <- 1 to numThreads) {
         for (i <- (t * stepFactor) to ((t + 1) * stepFactor - 1)) {
           val key = genKey(i, digest)
           val expectedValue = (0 to numWords).map(x => words(i % words.size)).mkString(",")
-          m.get(key, (b) => {
-            val a = new Array[Byte](b.remaining)
-            b.get(a)
-            new String(a)
-          }) should be(expectedValue)
+          val actualValue = m.get(key, g)
+          actualValue should be(expectedValue)
         }
       }
       println(s"GET ALL > ${m.numSegments} SEGMENTS: free = ${m.freeBytes / 1024} Kb, count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.sizeInBytes / 1024} Kb")

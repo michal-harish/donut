@@ -47,8 +47,23 @@ trait Segment {
   def size: Int
 
   /**
+   * Allocates a new block of storage and returns its position. The position should be filled in with `set` and indexed
+   * or removed with `remove` methods.
+   * @param length num bytes to allocate
+   * @return index of the newly allocated block
+   */
+  def alloc(length: Int): Int
+
+  /**
+   * Sets the content of a block that was allocated using alloc(...)
    * @param block
-   * @return wrapped length of the block as stored in the memory, in bytes
+   * @param value
+   */
+  def set(block: Int, value: ByteBuffer)
+
+  /**
+   * @param block
+   * @return length of the block as stored in the memory, in bytes
    */
   def sizeOf(block: Int): Int
 
@@ -59,16 +74,19 @@ trait Segment {
   def compressRatio: Double = 1.0
 
   /**
-   * Appends a block and returns it's index in the segment's block storage.
-   * The block passed as argument will not be affected. Internal memory
-   * position will move to the next free address and the index size will be +1
-   *
-   * The compression is decided based on size of the block and is transparent.
-   *
    * @param block
-   * @return integer index of the element's position in the segment's memory or -1 if it was not possible to append
+   * @param decoder
+   * @return
    */
-  def put(block: ByteBuffer, position: Int = -1): Int
+  def get[X](block: Int, decoder: (ByteBuffer => X)): X
+
+  /**
+   *
+   * @param block if -1 is given it behaves as append
+   * @param value
+   * @return the position, which is either same as the block given as argument or new block position if -1 was given
+   */
+  def put(block: Int, value: ByteBuffer): Int
 
   /**
    * Delete or mark for deletion the given position
@@ -76,33 +94,11 @@ trait Segment {
   def remove(position: Int) : Unit
 
   /**
+   * Testing methods
    * @param block
-   * @param decoder
    * @return
    */
-  def get[X](block: Int, decoder: (ByteBuffer => X)): X
+  private[logmap] def get(block: Int): ByteBuffer = get(block, (b:ByteBuffer) => b)
 
-  def get(block: Int): ByteBuffer = get(block, (b:ByteBuffer) => b)
-
-  /**
-   * Allocates a new block of storage
-   * Warning: this method can cause memory leak if the block is not consumed and index properly outside the segment
-   * @param length num bytes to allocate
-   * @return index of the newly allocated block
-   */
-  def alloc(length: Int): Int
-
-  /**
-   * Copies content of another block form source segment - the desBlock must be allocated by alloc(..)
-   * @return integer index of the element's position in the segment's memory or -1 if it was not possible to append
-   */
-  def copy(src: Segment, srcBlock: Int, dstBlock: Int = -1): Int
-
-  /**
-   * Sets the content of a block that was allocated using alloc(...)
-   * @param block
-   * @param value
-   */
-  def set(block: Int, value: ByteBuffer)
 
 }

@@ -82,5 +82,7 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
   }
 
   override def compressRatio: Double = 1.0
+
+  override def applyCompression(fraction: Double): Unit = {}
 }
 
