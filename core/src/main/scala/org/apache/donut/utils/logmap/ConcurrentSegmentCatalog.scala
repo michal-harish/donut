@@ -27,6 +27,7 @@ import scala.collection.JavaConverters._
  * ConcurrentSegmentCatalog is a Thread-Safe collection of Segments. Segment is a collection of indexed blocks implemented elsewhere.
  *
  */
+
 class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize: Int, segmentAllocCallback: (Int) => Unit) extends AnyRef {
 
   private def newSegmentInstance = new SegmentDirectMemoryLZ4(segmentSizeMb, compressMinBlockSize)
@@ -54,6 +55,8 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def getBlock[X](p: COORD, mapper: ByteBuffer => X): X = segments.get(p._2).get(p._3, mapper)
 
+  def totalCapacityInBytes: Long = segments.synchronized { segments.asScala.map(_.sizeInBytes).sum }
+
   def markForDeletion(coord: COORD) = segments.get(coord._2).remove(coord._3)
 
   private[logmap] def createNewSegment: Short = segments.synchronized {
@@ -77,12 +80,16 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
     //TODO if there are 2 segments with load < 0.5 merge into one of them and recycle the other
   }
 
-  def compress(maxCapacityMb: Long, compressedFraction: Double) = segments.synchronized {
-    val maxNumSegments = maxCapacityMb / segmentSizeMb
-    val maxNumCompressedSegments = (maxNumSegments * compressedFraction).toInt
-    for (i <- 0 to maxNumCompressedSegments - 1) segments.synchronized {
-      if (i < index.size) segments.get(index.get(i)).compress
-    }
+  def compress(maxCapacityMb: Long, logHistoryFraction: Double) = segments.synchronized {
+    val sizeThreshold = (maxCapacityMb * (1.0 - logHistoryFraction)).toInt
+    var cummulativeSize = 0
+    index.asScala.foreach(s => {
+      val segment = segments.get(s)
+      cummulativeSize += segment.sizeInBytes / 1024 / 1024
+      if (cummulativeSize > sizeThreshold) {
+        segment.compress
+      }
+    })
   }
 
   def recycleSegment(s: Short): Unit = segments.synchronized {
@@ -120,12 +127,12 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
     }
   }
 
-    def move(iSrc: COORD, iDst: COORD): Unit = {
-      val srcSegment = segments.get(iSrc._2)
-      val dstSegment = segments.get(iDst._2)
-      srcSegment.get[Unit](iSrc._3, (b) => dstSegment.set(iDst._3, b))
-      srcSegment.remove(iSrc._3)
-    }
+  def move(iSrc: COORD, iDst: COORD): Unit = {
+    val srcSegment = segments.get(iSrc._2)
+    val dstSegment = segments.get(iDst._2)
+    srcSegment.get[Unit](iSrc._3, (b) => dstSegment.set(iDst._3, b))
+    srcSegment.remove(iSrc._3)
+  }
 
   def dealloc(p: COORD): Unit = segments.get(p._2).remove(p._3)
 
@@ -141,6 +148,17 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
       }
     }
   }
+
+  def printStats: Unit = segments.synchronized {
+    def printStats(s:Int, segment: Segment) = {
+      println(s"SEGMENT[${s}] num.entries = ${segment.size}, capacity ${segment.capacityInBytes / 1024 / 1024} Mb, " +
+        s"load factor = ${segment.sizeInBytes.toDouble / segment.capacityInBytes},  " +
+        s"compression = ${segment.compressRatio * 100.0} %")
+    }
+    index.asScala.foreach(s => printStats(s, segments.get(s)))
+    segments.asScala.filter(segment => !index.asScala.exists(segments.get(_) == segment)).foreach(s => printStats(-1, s))
+  }
+
 
 }
 

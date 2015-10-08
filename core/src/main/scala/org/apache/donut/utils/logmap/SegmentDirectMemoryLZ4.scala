@@ -42,9 +42,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 
   private[logmap] val index = new IntIndex(capacityMb * 8192)
 
-  private val memory = {
-    ByteBuffer.allocateDirect(capacity)
-  }
+  private val memory = ByteBuffer.allocateDirect(capacity)
 
   private val compactionLock = new ReentrantReadWriteLock
 
@@ -170,7 +168,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
           val compressedGroupSize = memory.getInt(pointer + 1)
           val uncompressedGroupSize = memory.getInt(pointer + 5)
           val nestedIndexSize = memory.getInt(pointer + 9)
-          (0 to nestedIndexSize - 1).foreach (nb => {
+          (0 to nestedIndexSize - 1).foreach(nb => {
             if (block == memory.getInt(pointer + 13 + nb * 12)) {
               return memory.getInt(pointer + 13 + nb * 12 + 8)
             }
@@ -182,7 +180,6 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
       compactionLock.readLock.unlock
     }
   }
-
 
 
   override def remove(position: Int): Unit = {
@@ -232,12 +229,12 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
           case 0 => sliceBuffer.slice
           case 2 => {
             val uncompressedLength = sliceBuffer.getInt
-            //            if (log.isTraceEnabled) {
-//            log.info(s"accessing block ${block} in compressed group @ ${pointer}, compressed = ${blockLength}, uncompressed = ${uncompressedLength}")
-            //            }
+            if (log.isTraceEnabled) {
+              log.trace(s"accessing block ${block} in compressed group @ ${pointer}, compressed = ${blockLength}, uncompressed = ${uncompressedLength}")
+            }
             val nestedIndexSize = sliceBuffer.getInt
             val nestedIndex: Map[Int, (Int, Int)] = (0 to nestedIndexSize - 1).map { nb => {
-              (sliceBuffer.getInt -> (sliceBuffer.getInt, sliceBuffer.getInt))
+              (sliceBuffer.getInt ->(sliceBuffer.getInt, sliceBuffer.getInt))
             }
             }.toMap
             val buffer = lz4Buffer.get
@@ -261,7 +258,6 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     compactionLock.writeLock.lock
     try {
       synchronized {
-        log.debug(s"Recycling segment with capacity ${memory.capacity} bytes")
         valid = true
         uncompressedSizeInBytes.set(0)
         maxBlockSize.set(0)
@@ -278,11 +274,11 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     compactionLock.writeLock.lock
     try {
       val compactedBlockIndex = (0 to index.count - 1).filter(index.get(_) >= 0)
-      val compactedSize = compactedBlockIndex.map(b => index.get(b)).distinct.map(pointer => memory.getInt(pointer+1) + 5).sum
+      val compactedSize = compactedBlockIndex.map(b => index.get(b)).distinct.map(pointer => memory.getInt(pointer + 1) + 5).sum
 
       if (compactedSize == memory.position) {
         return false
-      } else {
+      } else if (log.isDebugEnabled) {
         log.debug(s"Compacting ${compactedBlockIndex.size} blocks to from ${memory.position} to ${compactedSize} bytes")
       }
       if (compactedSize < 0) {
@@ -295,22 +291,25 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
         counter = 0
         memory.clear
         var prevPointer = -1
+        var prevPointerMoved = -1
         sortedBlockIndex.foreach { case (pointer, b) => {
           try {
-            val blockType = memory.get(pointer)
-            val blockLength = memory.getInt(pointer + 1)
-            val wrappedLength = blockLength + 5
-            val uncompressedLength = blockType match {
-              case 0 => wrappedLength
-              case 2 => memory.getInt(pointer + 5) + 9
-            }
             if (pointer == prevPointer) {
-              val sharedBlockPointer = memory.position - wrappedLength
-              index.put(sharedBlockPointer, b)
+              index.put(prevPointerMoved, b)
             } else {
               prevPointer = pointer
+              prevPointerMoved = memory.position
+
+              val blockType = memory.get(pointer)
+              val blockLength = memory.getInt(pointer + 1)
+              val wrappedLength = blockLength + 5
+              val uncompressedLength = blockType match {
+                case 0 => wrappedLength
+                case 2 => memory.getInt(pointer + 5) + 9
+              }
+
               if (pointer == memory.position) {
-                memory.position(memory.position + wrappedLength)
+                memory.position(pointer + wrappedLength)
               } else if (pointer > memory.position) {
                 var srcPos = pointer
                 val limit = pointer + wrappedLength
@@ -389,9 +388,9 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
               for (m <- (start to end)) {
                 index.put(pointer, m)
               }
-//              if (log.isTraceEnabled) {
-//                log.info(s"@${pointer} compression of blocks [${start}..${end}] of total ${lz4UncompressedChunkLen} down to ${memory.getInt(pointer)} bytes at rate ${compressedLen * 100.0 / lz4UncompressedChunkLen} %")
-//              }
+              if (log.isTraceEnabled) {
+                log.trace(s"@${pointer} compression of blocks [${start}..${end}] of ${lz4UncompressedChunkLen} bytes down to ${memory.getInt(pointer + 1)} bytes at rate ${compressedLen * 100.0 / lz4UncompressedChunkLen} %")
+              }
             } finally {
               start = -1
               lz4UncompressedChunkLen = 0
@@ -406,8 +405,8 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     }
   }
 
-//  private def uncompress(pointer: Int) = {
-//
-//  }
+  //  private def uncompress(pointer: Int) = {
+  //
+  //  }
 
 }

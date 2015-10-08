@@ -49,7 +49,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  *
  */
 
-class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val compressMinBlockSize: Int) {
+class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val compressMinBlockSize: Int, val indexLoadFactor: Double = 0.7) {
 
   //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into
   // ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
@@ -59,15 +59,21 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
   val maxSizeInBytes = maxSizeInMb * 1024 * 1024
 
   type COORD = (Boolean, Short, Int)
-  private[donut] val index = new VarHashTable(initialCapacityKb = 64, loadFactor = 0.6)
+  private[donut] val index = new VarHashTable(initialCapacityKb = 64,  indexLoadFactor)
   private val indexLock = new ReentrantReadWriteLock
   private val indexReader = indexLock.readLock
   private val indexWriter = indexLock.writeLock
 
   private[logmap] val catalog = new ConcurrentSegmentCatalog(segmentSizeMb, compressMinBlockSize, (onAllocateSegment: Int) => {
-    if (sizeInBytes + onAllocateSegment > maxSizeInBytes) {
+    if (totalSizeInBytes + onAllocateSegment > maxSizeInBytes) {
       compact
-      makeAvailableNumBytes(onAllocateSegment)
+      val requireBytes = totalSizeInBytes + onAllocateSegment - maxSizeInBytes
+//      println(s"Recycling: current total size ${totalSizeInBytes / 1024 / 1024} Mb " +
+//        s"plus required ${onAllocateSegment / 1024 / 1024} Mb " +
+//        s"is > $maxSizeInMb Mb total maximum allowed")
+//      println(s"Recycling: requesting ${requireBytes / 1024/ 1024}Mb")
+      recycleNumBytes(requireBytes)
+//      println(s"Recycling: post-recycle total size in Mb ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${indexSizeInBytes / 2014 / 2014} Mb)")
     }
   })
 
@@ -83,11 +89,13 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
     case r => if (r.size == 0) 0 else (r.sum / r.size)
   }
 
-  def sizeInBytes: Long = catalog.iterator.map(_._2.capacityInBytes.toLong).sum + index.sizeInBytes
+  def logSizeInBytes: Long = catalog.iterator.map(_._2.capacityInBytes.toLong).sum
 
-  def freeBytes: Long = (sizeInBytes * (1.0 - load)).toLong
+  def indexSizeInBytes: Long = index.sizeInBytes
 
-  def load: Double = catalog.iterator.map(_._2.sizeInBytes.toLong).sum.toDouble / sizeInBytes
+  def totalSizeInBytes: Long =  catalog.totalCapacityInBytes + indexSizeInBytes
+
+  def load: Double = catalog.iterator.map(_._2.sizeInBytes.toLong).sum.toDouble / catalog.totalCapacityInBytes
 
   def contains(key: ByteBuffer): Boolean = {
     indexReader.lock
@@ -180,8 +188,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
 
             /* TODO At the moment, if a block is being extracted from a compressed group it will also remain in the
              * compressed group - what should really happen is that since we're uncompressing the block it would make sense
-             * to first re-store all blocks it contains within the same segment, and then move out the individual block
-             * being touched.
+             * to first re-store all blocks it contains within the current segment not just the one being requested.
              */
             catalog.move(oldIndexValue, newIndexValue)
 
@@ -202,35 +209,37 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
     }
   }
 
-  def makeAvailableNumBytes(numBytes: Int): Unit = {
-    catalog.compact
-    if (sizeInBytes + numBytes > maxSizeInBytes) {
-      indexWriter.lock
-      try {
-        var bytesToRemove = sizeInBytes + numBytes - maxSizeInBytes
-        var segmentsRemoved = new scala.collection.mutable.HashSet[Short]()
-        catalog.iterator.foreach { case (s, segment) => {
-          if (bytesToRemove > 0) {
-            bytesToRemove -= segment.capacityInBytes
-            segmentsRemoved += s
-            catalog.recycleSegment(s)
-          }
+  def recycleNumBytes(numBytesToRecyecle: Long): Unit = {
+    var bytesToRemove = numBytesToRecyecle
+    indexWriter.lock
+    try {
+      var segmentsRemoved = new scala.collection.mutable.HashSet[Short]()
+      catalog.iterator.foreach { case (s, segment) => {
+        if (bytesToRemove > 0) {
+          bytesToRemove -= segment.capacityInBytes
+          segmentsRemoved += s
+          catalog.recycleSegment(s)
         }
-        }
-        if (segmentsRemoved.size > 0) {
-          index.update((pointer: COORD) => {
-            pointer._2 match {
-              case removedSegment if (segmentsRemoved.contains(removedSegment)) => null
-              case retainedSegment => pointer
-            }
-          })
-        }
-      } finally {
-        indexWriter.unlock
       }
+      }
+      if (segmentsRemoved.size > 0) {
+        index.update((pointer: COORD) => {
+          pointer._2 match {
+            case removedSegment if (segmentsRemoved.contains(removedSegment)) => null
+            case retainedSegment => pointer
+          }
+        })
+      }
+    } finally {
+      indexWriter.unlock
     }
+
   }
 
+  def printStats = {
+    println(s"num.entires = ${size}  total.mb = ${totalSizeInBytes} / 1024 / 1024} Mb  compression = ${compressRatio} (of that index: ${indexSizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})")
+    catalog.printStats
+  }
 
 }
 

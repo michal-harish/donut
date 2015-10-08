@@ -29,7 +29,7 @@ import scala.collection.JavaConverters._
  * Not Thread-Safe
  *
  */
-class VarHashTable(val initialCapacityKb: Int, val loadFactor: Double = 0.7) {
+class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
 
   //TODO class VarHashTable[K] and use K.hashCode so that we can do correction for 0 and Int.MinValue hashCodes transparently
 
