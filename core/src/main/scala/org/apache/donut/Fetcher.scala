@@ -35,7 +35,8 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
 
   final protected val topicAndPartition = new TopicAndPartition(topic, partition)
 
-  final private val checkpointCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10) // TODO configurable kafka.offset.commit.interval.ms
+  //TODO configurable kafka.offset.commit.interval.ms
+  final private val checkpointCommitIntervalNanos = TimeUnit.SECONDS.toNanos(10)
 
   final protected var consumer = new task.kafkaUtils.PartitionConsumer(topic, partition, groupId)
 
@@ -56,7 +57,9 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
 
   private var lastCheckpointCommitValue = fetchConsumerOffsetFromCoordinator()
   private var lastCheckpointCommitTime = -1L
+
   private[donut] def getCheckpointOffset = lastCheckpointCommitValue
+
   private var nextFetchOffset: Long = -1L
 
   override def run(): Unit = {
@@ -85,17 +88,10 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
               if (nextFetchOffsetHandled > lastCheckpointCommitValue) {
                 val nanoTime = System.nanoTime
                 if (lastCheckpointCommitTime + checkpointCommitIntervalNanos < System.nanoTime) {
-                  try {
-                    log.debug(s"Committing offset for ${topicAndPartition} in group {$groupId} to ${nextFetchOffset}, num message = ${nextFetchOffsetHandled - lastCheckpointCommitValue}")
-                    consumer.commitOffset(nextFetchOffsetHandled)
-                    lastCheckpointCommitTime = nanoTime
-                    lastCheckpointCommitValue = nextFetchOffsetHandled
-                  } catch {
-                    case e: IOException => {
-                      //TODO implement retries
-                      throw e
-                    }
-                  }
+                  log.debug(s"Committing offset for ${topicAndPartition} in group {$groupId} to ${nextFetchOffset}, num message = ${nextFetchOffsetHandled - lastCheckpointCommitValue}")
+                  consumer.commitOffset(nextFetchOffsetHandled)
+                  lastCheckpointCommitTime = nanoTime
+                  lastCheckpointCommitValue = nextFetchOffsetHandled
                 }
               }
             }

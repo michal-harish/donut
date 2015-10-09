@@ -70,13 +70,24 @@ case class KafkaUtils(val config: Properties) {
   }
 
   def findLeader(topic: String, partition: Int): Broker = {
-    val partitionMeta = getPartitionMeta(topic, partition)
-    if (partitionMeta == null) {
-      throw new IllegalStateException(s"Empty partition metadata for ${topic}/${partition}")
-    } else if (partitionMeta.leader.isEmpty) {
-      throw new IllegalStateException(s"No partition leader ${topic}/${partition}")
+    while(true) {
+      try {
+        val partitionMeta = getPartitionMeta(topic, partition)
+        if (partitionMeta == null) {
+          throw new IllegalArgumentException(s"Empty partition metadata for ${topic}/${partition}")
+        } else if (partitionMeta.leader.isEmpty) {
+          throw new IllegalStateException
+        } else {
+          return partitionMeta.leader.get
+        }
+      } catch {
+        case e: IllegalStateException => {
+          log.warn(s"No partition leader ${topic}/${partition}, retrying in 10s ...")
+          Thread.sleep(10000)
+        }
+      }
     }
-    partitionMeta.leader.get
+    throw new IllegalStateException
   }
 
   def getOffsetRange(consumer: SimpleConsumer, topicAndPartition: TopicAndPartition, earliestOrLatest: Long): Long = {
@@ -101,7 +112,7 @@ case class KafkaUtils(val config: Properties) {
         try {
           val req = new OffsetFetchRequest(groupId, Seq(topicAndPartition))
           val res = consumer.fetchOffsets(req)
-          //FIXME handle errors, but fetchOffsets response doesn't have hasError method
+          //TODO handle errors, but fetchOffsets response doesn't have hasError method
           val consumed = res.requestInfo(topicAndPartition).offset
           consumed
         } finally {
@@ -134,7 +145,7 @@ case class KafkaUtils(val config: Properties) {
     } catch {
       case e: IOException => {
         numErrors += 1
-        if (numErrors > 3) throw e else Thread.sleep(1000)
+        if (numErrors > 3) throw e else Thread.sleep(5000)
       }
     }
   }
