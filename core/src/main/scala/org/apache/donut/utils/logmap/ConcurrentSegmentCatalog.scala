@@ -28,7 +28,10 @@ import scala.collection.JavaConverters._
  *
  */
 
-class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize: Int, segmentAllocCallback: (Int) => Unit) extends AnyRef {
+class ConcurrentSegmentCatalog(
+                                val segmentSizeMb: Int,
+                                val compressMinBlockSize: Int,
+                                segmentAllocCallback: (Int) => Unit) extends AnyRef {
 
   private def newSegmentInstance = new SegmentDirectMemoryLZ4(segmentSizeMb, compressMinBlockSize)
 
@@ -55,11 +58,13 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def getBlock[X](p: COORD, mapper: ByteBuffer => X): X = segments.get(p._2).get(p._3, mapper)
 
-  def totalCapacityInBytes: Long = segments.synchronized { segments.asScala.map(_.totalSizeInBytes).sum }
+  def allocatedSizeInBytes: Long = segments.synchronized(index.asScala.map(s => segments.get(s).totalSizeInBytes.toLong)).sum
 
   def markForDeletion(coord: COORD) = segments.get(coord._2).remove(coord._3)
 
-  private[logmap] def createNewSegment: Short = segments.synchronized {
+  private[logmap] def allocSegment: Short = segments.synchronized {
+    segmentAllocCallback(segmentSizeMb * 1024 * 1024)
+
     for (s <- 0 to segments.size - 1) {
       if (segments.get(s).size == 0) {
         currentSegment = s.toShort
@@ -68,7 +73,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
         return currentSegment
       }
     }
-    segmentAllocCallback(segmentSizeMb * 1024 * 1024)
+
     segments.add(newSegmentInstance)
     currentSegment = (segments.size - 1).toShort
     index.add(currentSegment)
@@ -93,6 +98,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def recycleSegment(s: Short): Unit = segments.synchronized {
     if (s != currentSegment) {
+      println(s"Recycling segment ${s}")
       index.remove(s.asInstanceOf[Object])
       segments.get(s).recycle
     }
@@ -113,7 +119,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
             case currentChecked => segments.get(currentChecked).alloc(valueSize) match {
               case newBlock if (newBlock >= 0) => (false, currentChecked, newBlock)
               case _ => {
-                val newSegment = createNewSegment
+                val newSegment = allocSegment
                 segments.get(newSegment).alloc(valueSize) match {
                   case -1 => throw new IllegalArgumentException(s"Value of length `${valueSize}` is bigger than segment size " + segmentSizeMb + " Mb")
                   case newBlock => (false, newSegment, newBlock)

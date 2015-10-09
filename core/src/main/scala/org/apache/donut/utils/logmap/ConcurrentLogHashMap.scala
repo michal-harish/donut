@@ -83,21 +83,24 @@ class ConcurrentLogHashMap(
   private val indexReader = indexLock.readLock
   private val indexWriter = indexLock.writeLock
 
-  private[logmap] val catalog = new ConcurrentSegmentCatalog(segmentSizeMb, compressMinBlockSize, (onAllocateSegment: Int) => {
-    if (totalSizeInBytes + onAllocateSegment > maxSizeInBytes) {
-      compact
-      val requireBytes = totalSizeInBytes + onAllocateSegment - maxSizeInBytes
-      //      println(s"Recycling: current total size ${totalSizeInBytes / 1024 / 1024} Mb " +
-      //        s"plus required ${onAllocateSegment / 1024 / 1024} Mb " +
-      //        s"is > $maxSizeInMb Mb total maximum allowed")
-      //      println(s"Recycling: requesting ${requireBytes / 1024/ 1024}Mb")
-      recycleNumBytes(requireBytes)
+  private[logmap] val catalog = new ConcurrentSegmentCatalog(segmentSizeMb, compressMinBlockSize,
+    (onAllocateSegment: Int) => {
       if (totalSizeInBytes + onAllocateSegment > maxSizeInBytes) {
-        throw new OutOfMemoryError(s"Could not ensure ${onAllocateSegment} will be available. " +
-          s"Current map size ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${indexSizeInBytes / 2014 / 2014} Mb")
+        compact
+        val requireBytes = totalSizeInBytes + onAllocateSegment - maxSizeInBytes
+        println(s"Recycling: current total size ${totalSizeInBytes / 1024 / 1024} Mb " +
+          s"plus required ${onAllocateSegment / 1024 / 1024} Mb " +
+          s"is > $maxSizeInMb Mb total maximum allowed")
+        println(s"Recycling: requesting ${requireBytes / 1024 / 1024}Mb")
+        recycleNumBytes(requireBytes)
+        if (totalSizeInBytes + onAllocateSegment > maxSizeInBytes) {
+          printStats
+          throw new OutOfMemoryError(s"LogHashMap could not ensure ${onAllocateSegment / 1024 / 1024} Mb will be available. " +
+            s"Current map size ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${indexSizeInBytes / 2014 / 2014} Mb")
+        }
       }
     }
-  })
+  )
 
   def numSegments = catalog.iterator.size
 
@@ -111,13 +114,13 @@ class ConcurrentLogHashMap(
     case r => if (r.size == 0) 0 else (r.sum / r.size)
   }
 
-  def logSizeInBytes: Long = catalog.iterator.map(_._2.totalSizeInBytes.toLong).sum
-
   def indexSizeInBytes: Long = index.sizeInBytes
 
-  def totalSizeInBytes: Long = catalog.totalCapacityInBytes + indexSizeInBytes
+  def logSizeInBytes: Long = catalog.allocatedSizeInBytes
 
-  def load: Double = catalog.iterator.map(_._2.usedBytes.toLong).sum.toDouble / catalog.totalCapacityInBytes
+  def totalSizeInBytes: Long = catalog.allocatedSizeInBytes + indexSizeInBytes
+
+  def load: Double = totalSizeInBytes.toDouble / maxSizeInBytes
 
   def contains(key: ByteBuffer): Boolean = {
     indexReader.lock
@@ -227,35 +230,34 @@ class ConcurrentLogHashMap(
     }
   }
 
-  def recycleNumBytes(numBytesToRecyecle: Long): Unit = {
-    var bytesToRemove = numBytesToRecyecle
-    indexWriter.lock
-    try {
-      var segmentsRemoved = new scala.collection.mutable.HashSet[Short]()
-      catalog.iterator.foreach { case (s, segment) => {
-        if (bytesToRemove > 0) {
-          bytesToRemove -= segment.totalSizeInBytes
-          segmentsRemoved += s
-          catalog.recycleSegment(s)
-        }
+  def recycleNumBytes(numBytesToRecycle: Long): Unit = {
+    var bytesToRemove = numBytesToRecycle
+    var segmentsRemoved = new scala.collection.mutable.HashSet[Short]()
+    catalog.iterator.foreach { case (s, segment) => {
+      if (bytesToRemove > 0) {
+        bytesToRemove -= segment.totalSizeInBytes
+        segmentsRemoved += s
+        catalog.recycleSegment(s)
       }
-      }
-      if (segmentsRemoved.size > 0) {
+    }
+    }
+    if (segmentsRemoved.size > 0) {
+      indexWriter.lock
+      try {
         index.update((pointer: COORD) => {
           pointer._2 match {
             case removedSegment if (segmentsRemoved.contains(removedSegment)) => null
             case retainedSegment => pointer
           }
         })
+      } finally {
+        indexWriter.unlock
       }
-    } finally {
-      indexWriter.unlock
     }
-
   }
 
-  def printStats = {
-    println(s"LOGHASHMAP STATS: num.entires = ${size}  total.mb = ${totalSizeInBytes / 1024 / 1024} Mb  compression = ${compressRatio} (of that index: ${indexSizeInBytes / 1024 / 1024 } Mb with load ${index.load * 100.0} %})")
+  def printStats: Unit = {
+    println(s"LOGHASHMAP: num.entires = ${size}  total.mb = ${totalSizeInBytes / 1024 / 1024} Mb  compression = ${compressRatio} (of that index: ${indexSizeInBytes / 1024 / 1024} Mb with load ${index.load * 100.0} %})")
     catalog.printStats
   }
 

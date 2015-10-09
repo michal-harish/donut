@@ -39,9 +39,9 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     m.put(a, ByteBuffer.wrap("Hello".getBytes))
     m.get(a)
     m.catalog.compact
-    m.catalog.createNewSegment
+    m.catalog.allocSegment
     m.get(a)
-    m.catalog.createNewSegment
+    m.catalog.allocSegment
     m.get(a)
     m.catalog.compact
     m.get(a)
