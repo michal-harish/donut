@@ -24,11 +24,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 /**
  * Created by mharis on 01/10/15.
  *
- * This is a specialised Thread-Safe HashMap based on in-memory block-storage which may be partially compressed either
- * a per-entry basis by given minimum block size which triggers compression for each value separately (SegmentDirectMemoryLZ4)
- * or at the time of compaction when segments not accessed recently can be first compressed instead of removed.
+ * This is a specialised Thread-Safe HashMap based on in-memory block storage which may be partially compressed
+ * dif a given minimum block size and load fraction conditions are met. The compression must be triggered as part
+ * of compaction. If the values that have been compressed are accessed again, the blocks containing them are
+ * uncompressed into the latest segment where they travel normally in the history of log until they meet compression
+ * criteria again.
  *
- * It has a hash table index and a list of segments. Both of these its internal structures are implemented in this
+ * It has a hash table index and a list of segments. Both of these internal structures are implemented in this
  * package and are based on direct memory buffers which allows for zero-copy access although application must take
  * some extra steps to ensure zero-copy. Direct memory buffers also allow for precise and cheap statistics about
  * it's capacity, load factor and actual compression rate.
@@ -37,7 +39,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  * top segment every time they are accessed. This leads to segments slowly evaporating except for the top one.
  *
  * Every attempt to allocate a new memory segment is tracked and triggers compaction if the total memory needed
- * would exceed than number of megabytes defined in the constructor of the map.
+ * would exceed the number of megabytes defined in the constructor of the map.
  *
  * During compaction several things may happen. Firstly each segment is compacted without re-allocation removing
  * values that were marked for deletion by entries leaving for the top segment, decreasing actual load factor.
@@ -49,17 +51,34 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  *
  */
 
-class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val compressMinBlockSize: Int, val indexLoadFactor: Double = 0.7) {
+class ConcurrentLogHashMap(
+                            val maxSizeInMb: Long,
+                            val segmentSizeMb: Int,
+                            val compressMinBlockSize: Int,
+                            val indexLoadFactor: Double = 0.7) {
 
   //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into
   // ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
-  //FIXME def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need
+
+  //TODO def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need
   // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate against the index
+
+  //TODO when compacting, if there are 2 or more segments with joint load <= 1.0 merge into one of them and recycle the others
+
+  //TODO custom class of ByteBuffer for lz4 buffers could remember which block is it pointing to but if we'll implement
+  //always decompressing the entire block into the current segmet that doesn't need to happen
+
+  // TODO At the moment, if a block is being moved (by get-touch) from a compressed group it will also remain in the
+  // compressed group - what should really happen is that since we're uncompressing the block it would make sense
+  // to first re-store all blocks it contains within the current segment not just the one being requested.
+
+  //TODO generalise hash table into  VarHashTable[K] and use K.hashCode so that we can do correction for 0 and
+  // Int.MinValue hashCodes transparently
 
   val maxSizeInBytes = maxSizeInMb * 1024 * 1024
 
   type COORD = (Boolean, Short, Int)
-  private[donut] val index = new VarHashTable(initialCapacityKb = 64,  indexLoadFactor)
+  private[donut] val index = new VarHashTable(initialCapacityKb = 64, indexLoadFactor)
   private val indexLock = new ReentrantReadWriteLock
   private val indexReader = indexLock.readLock
   private val indexWriter = indexLock.writeLock
@@ -68,12 +87,12 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
     if (totalSizeInBytes + onAllocateSegment > maxSizeInBytes) {
       compact
       val requireBytes = totalSizeInBytes + onAllocateSegment - maxSizeInBytes
-//      println(s"Recycling: current total size ${totalSizeInBytes / 1024 / 1024} Mb " +
-//        s"plus required ${onAllocateSegment / 1024 / 1024} Mb " +
-//        s"is > $maxSizeInMb Mb total maximum allowed")
-//      println(s"Recycling: requesting ${requireBytes / 1024/ 1024}Mb")
+      //      println(s"Recycling: current total size ${totalSizeInBytes / 1024 / 1024} Mb " +
+      //        s"plus required ${onAllocateSegment / 1024 / 1024} Mb " +
+      //        s"is > $maxSizeInMb Mb total maximum allowed")
+      //      println(s"Recycling: requesting ${requireBytes / 1024/ 1024}Mb")
       recycleNumBytes(requireBytes)
-//      println(s"Recycling: post-recycle total size in Mb ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${indexSizeInBytes / 2014 / 2014} Mb)")
+      //      println(s"Recycling: post-recycle total size in Mb ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${indexSizeInBytes / 2014 / 2014} Mb)")
     }
   })
 
@@ -89,13 +108,13 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
     case r => if (r.size == 0) 0 else (r.sum / r.size)
   }
 
-  def logSizeInBytes: Long = catalog.iterator.map(_._2.capacityInBytes.toLong).sum
+  def logSizeInBytes: Long = catalog.iterator.map(_._2.totalSizeInBytes.toLong).sum
 
   def indexSizeInBytes: Long = index.sizeInBytes
 
-  def totalSizeInBytes: Long =  catalog.totalCapacityInBytes + indexSizeInBytes
+  def totalSizeInBytes: Long = catalog.totalCapacityInBytes + indexSizeInBytes
 
-  def load: Double = catalog.iterator.map(_._2.sizeInBytes.toLong).sum.toDouble / catalog.totalCapacityInBytes
+  def load: Double = catalog.iterator.map(_._2.usedBytes.toLong).sum.toDouble / catalog.totalCapacityInBytes
 
   def contains(key: ByteBuffer): Boolean = {
     indexReader.lock
@@ -186,10 +205,6 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
               indexWriter.unlock
             }
 
-            /* TODO At the moment, if a block is being extracted from a compressed group it will also remain in the
-             * compressed group - what should really happen is that since we're uncompressing the block it would make sense
-             * to first re-store all blocks it contains within the current segment not just the one being requested.
-             */
             catalog.move(oldIndexValue, newIndexValue)
 
             indexReader.unlock
@@ -216,7 +231,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
       var segmentsRemoved = new scala.collection.mutable.HashSet[Short]()
       catalog.iterator.foreach { case (s, segment) => {
         if (bytesToRemove > 0) {
-          bytesToRemove -= segment.capacityInBytes
+          bytesToRemove -= segment.totalSizeInBytes
           segmentsRemoved += s
           catalog.recycleSegment(s)
         }
@@ -237,7 +252,7 @@ class ConcurrentLogHashMap(val maxSizeInMb: Long, val segmentSizeMb: Int, val co
   }
 
   def printStats = {
-    println(s"num.entires = ${size}  total.mb = ${totalSizeInBytes} / 1024 / 1024} Mb  compression = ${compressRatio} (of that index: ${indexSizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})")
+    println(s"num.entires = ${size}  total.mb = ${totalSizeInBytes / 1024 / 1024} Mb  compression = ${compressRatio} (of that index: ${indexSizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})")
     catalog.printStats
   }
 

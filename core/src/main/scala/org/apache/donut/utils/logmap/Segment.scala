@@ -30,10 +30,11 @@ import java.nio.ByteBuffer
  */
 
 trait Segment {
+  def printStats(s: Short): Unit
 
-  def capacityInBytes: Int
+  def totalSizeInBytes: Int
 
-  def sizeInBytes: Int
+  def usedBytes: Int
 
   def compact: Boolean
 

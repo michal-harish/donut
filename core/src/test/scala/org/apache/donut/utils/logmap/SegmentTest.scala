@@ -73,11 +73,11 @@ class SegmentTest extends FlatSpec with Matchers {
 
     segment.compressRatio should be (1.0)
 
-    segment.sizeInBytes should be < (40000)
+    segment.usedBytes should be < (40000)
 
     segment.put(0, testBlock) should be(0)
 
-    segment.sizeInBytes should be > (40000)
+    segment.usedBytes should be > (40000)
 
     segment.compressRatio should be (1.0)
 
@@ -85,7 +85,7 @@ class SegmentTest extends FlatSpec with Matchers {
 
     segment.compact should be(true)
 
-    segment.sizeInBytes should be < (40000)
+    segment.usedBytes should be < (40000)
 
     segment.compressRatio should be (1.0)
 
@@ -93,7 +93,7 @@ class SegmentTest extends FlatSpec with Matchers {
 
     an[ArrayIndexOutOfBoundsException] should be thrownBy (segment.get(0))
 
-    segment.sizeInBytes should be(0)
+    segment.usedBytes should be(0)
   }
 
   it should "group multiple blocks into a single lz4block of min size" in {
@@ -116,7 +116,7 @@ class SegmentTest extends FlatSpec with Matchers {
     for (p <- (0 to numEntries - 1)) {
       segment.put(-1, testBlock) should be(p)
     }
-    println(s"${numEntries} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+    println(s"${numEntries} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
     segment.compressRatio should be(1.0)
 
     //no more entries can fit
@@ -125,9 +125,9 @@ class SegmentTest extends FlatSpec with Matchers {
     for (p <- (0 to numEntries - 1)) {
       segment.get(p) should be(testBlock)
     }
-    println(s"${numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+    println(s"${numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
     segment.compress
-    println(s"COMPRESS > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+    println(s"COMPRESS > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
 
     segment.compressRatio should be < (0.2)
     for (p <- (0 to numEntries - 1)) {
@@ -138,12 +138,12 @@ class SegmentTest extends FlatSpec with Matchers {
     for (p <- (0 to numEntries / 2 - 1)) {
       segment.put(-1, testBlock) should be(numEntries + p)
     }
-    println(s"${numEntries / 2} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+    println(s"${numEntries / 2} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
 
     for (p <- (0 to numEntries + (numEntries / 2) - 1)) {
       segment.get(p) should be(testBlock)
     }
-    println(s"${1.5 * numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.sizeInBytes / 1024} Kb")
+    println(s"${1.5 * numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
 
   }
 
@@ -158,9 +158,9 @@ class SegmentTest extends FlatSpec with Matchers {
       val value = ByteBuffer.wrap((0 to 100).map(x => words(math.abs(random.nextInt) % words.size)).mkString(",").getBytes)
       s.put(-1, value)
     }
-    println(s"size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio} %")
+    println(s"size = ${s.usedBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio} %")
     s.compact should be (false)
-    s.sizeInBytes / 1024 / 1024 should be(12)
+    s.usedBytes / 1024 / 1024 should be(12)
     s.compressRatio should be (1.0)
 
     val numThreads = 4
@@ -190,13 +190,13 @@ class SegmentTest extends FlatSpec with Matchers {
     }
     e.shutdown
     if (!e.awaitTermination(10, TimeUnit.SECONDS)) {
-      throw new TimeoutException(s"size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio}")
+      throw new TimeoutException(s"size = ${s.usedBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio}")
     }
-    println(s"parallel put & compact > size = ${s.sizeInBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio}")
+    println(s"parallel put & compact > size = ${s.usedBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio}")
     println(s"parralel put & compact ${System.currentTimeMillis - processTime} ms")
     s.size should be (25000)
     s.compressRatio should be (1.0)
-    s.sizeInBytes / 1024 / 1024 should be (12)
+    s.usedBytes / 1024 / 1024 should be (12)
   }
 
 }

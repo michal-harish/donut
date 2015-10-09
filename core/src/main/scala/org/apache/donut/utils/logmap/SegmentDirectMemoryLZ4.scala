@@ -34,6 +34,13 @@ import org.slf4j.LoggerFactory
 
 class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends Segment {
 
+  override def printStats(s: Short): Unit = {
+      println(s"SEGMENT[${s}] num.entries = ${size}, total.size = ${totalSizeInBytes / 1024 / 1024} Mb, " +
+        s"(INDEX count = ${index.count}, size = ${index.capacityInBytes / 1024 / 1024} Mb) " +
+        s"load factor = ${usedBytes.toDouble / totalSizeInBytes},  " +
+        s"compression = ${compressRatio * 100.0} %")
+  }
+
   private val log = LoggerFactory.getLogger(classOf[SegmentDirectMemoryLZ4])
 
   implicit def integerToAtomicInt(i: AtomicInteger) = new AtomicInt(i)
@@ -60,19 +67,17 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 
   override def size: Int = counter
 
-  override def capacityInBytes = capacity + index.capacityInBytes + lz4Buffer.sizeInBytes.get
+  override def totalSizeInBytes = capacity + index.capacityInBytes + lz4Buffer.sizeInBytes.get
 
-  override def sizeInBytes = memory.position + index.sizeInBytes + lz4Buffer.sizeInBytes.get
+  override def usedBytes = memory.position + index.sizeInBytes + lz4Buffer.sizeInBytes.get
 
   override def compressRatio: Double = uncompressedSizeInBytes.get match {
     case 0 => 1.0
-    case x => sizeInBytes * 1.0 / (x + index.sizeInBytes + lz4Buffer.sizeInBytes.get)
+    case x => usedBytes * 1.0 / (x + index.sizeInBytes + lz4Buffer.sizeInBytes.get)
   }
 
   private[logmap] val lz4Buffer = new ThreadLocal[ByteBuffer] {
     val sizeInBytes = new AtomicInteger(0)
-
-    //TODO custom class of ByteBuffer that can remember which block is it pointing to
     override def initialValue = {
       val result = ByteBuffer.allocateDirect(compressor.maxCompressedLength(maxBlockSize.get))
       sizeInBytes.addAndGet(result.capacity)
@@ -404,9 +409,4 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
       compactionLock.writeLock.unlock
     }
   }
-
-  //  private def uncompress(pointer: Int) = {
-  //
-  //  }
-
 }

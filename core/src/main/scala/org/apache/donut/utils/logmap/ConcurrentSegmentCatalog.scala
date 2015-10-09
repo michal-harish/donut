@@ -55,7 +55,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def getBlock[X](p: COORD, mapper: ByteBuffer => X): X = segments.get(p._2).get(p._3, mapper)
 
-  def totalCapacityInBytes: Long = segments.synchronized { segments.asScala.map(_.sizeInBytes).sum }
+  def totalCapacityInBytes: Long = segments.synchronized { segments.asScala.map(_.usedBytes).sum }
 
   def markForDeletion(coord: COORD) = segments.get(coord._2).remove(coord._3)
 
@@ -77,7 +77,6 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def compact = {
     for (s <- 0 to (segments.size - 1)) segments.get(s).compact
-    //TODO if there are 2 segments with load < 0.5 merge into one of them and recycle the other
   }
 
   def compress(maxCapacityMb: Long, logHistoryFraction: Double) = segments.synchronized {
@@ -85,7 +84,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
     var cummulativeSize = 0
     index.asScala.foreach(s => {
       val segment = segments.get(s)
-      cummulativeSize += segment.sizeInBytes / 1024 / 1024
+      cummulativeSize += segment.usedBytes / 1024 / 1024
       if (cummulativeSize > sizeThreshold) {
         segment.compress
       }
@@ -150,13 +149,8 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
   }
 
   def printStats: Unit = segments.synchronized {
-    def printStats(s:Int, segment: Segment) = {
-      println(s"SEGMENT[${s}] num.entries = ${segment.size}, capacity ${segment.capacityInBytes / 1024 / 1024} Mb, " +
-        s"load factor = ${segment.sizeInBytes.toDouble / segment.capacityInBytes},  " +
-        s"compression = ${segment.compressRatio * 100.0} %")
-    }
-    index.asScala.foreach(s => printStats(s, segments.get(s)))
-    segments.asScala.filter(segment => !index.asScala.exists(segments.get(_) == segment)).foreach(s => printStats(-1, s))
+    index.asScala.reverse.foreach(s => segments.get(s).printStats(s))
+    segments.asScala.filter(segment => !index.asScala.exists(i => segments.get(i) == segment)).foreach(s => s.printStats(-1))
   }
 
 
