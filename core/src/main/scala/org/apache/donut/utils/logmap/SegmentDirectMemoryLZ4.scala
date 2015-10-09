@@ -34,13 +34,6 @@ import org.slf4j.LoggerFactory
 
 class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends Segment {
 
-  override def printStats(s: Short): Unit = {
-      println(s"SEGMENT[${s}] num.entries = ${size}, total.size = ${totalSizeInBytes / 1024 / 1024} Mb, " +
-        s"(INDEX count = ${index.count}, size = ${index.capacityInBytes / 1024 / 1024} Mb) " +
-        s"load factor = ${usedBytes.toDouble / totalSizeInBytes},  " +
-        s"compression = ${compressRatio * 100.0} %")
-  }
-
   private val log = LoggerFactory.getLogger(classOf[SegmentDirectMemoryLZ4])
 
   implicit def integerToAtomicInt(i: AtomicInteger) = new AtomicInt(i)
@@ -409,4 +402,12 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
       compactionLock.writeLock.unlock
     }
   }
+
+  override def printStats(s: Short): Unit = {
+    println(s"SEGMENT[${s}] num.entries = ${size}, total.size = ${totalSizeInBytes / 1024 / 1024} Mb, " +
+      s"(INDEX size = ${index.count}, capacity = ${index.capacityInBytes / 1024 / 1024} Mb) " +
+      s"load = ${usedBytes.toDouble * 100.0/ totalSizeInBytes} %,  " +
+      s"compression = ${compressRatio * 100.0} %")
+  }
+
 }

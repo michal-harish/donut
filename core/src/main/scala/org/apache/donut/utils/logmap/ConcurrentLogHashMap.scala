@@ -92,7 +92,10 @@ class ConcurrentLogHashMap(
       //        s"is > $maxSizeInMb Mb total maximum allowed")
       //      println(s"Recycling: requesting ${requireBytes / 1024/ 1024}Mb")
       recycleNumBytes(requireBytes)
-      //      println(s"Recycling: post-recycle total size in Mb ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${indexSizeInBytes / 2014 / 2014} Mb)")
+      if (totalSizeInBytes + onAllocateSegment > maxSizeInBytes) {
+        throw new OutOfMemoryError(s"Could not ensure ${onAllocateSegment} will be available. " +
+          s"Current map size ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${indexSizeInBytes / 2014 / 2014} Mb")
+      }
     }
   })
 
@@ -252,7 +255,7 @@ class ConcurrentLogHashMap(
   }
 
   def printStats = {
-    println(s"num.entires = ${size}  total.mb = ${totalSizeInBytes / 1024 / 1024} Mb  compression = ${compressRatio} (of that index: ${indexSizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})")
+    println(s"LOGHASHMAP STATS: num.entires = ${size}  total.mb = ${totalSizeInBytes / 1024 / 1024} Mb  compression = ${compressRatio} (of that index: ${indexSizeInBytes / 1024 / 1024 } Mb with load ${index.load * 100.0} %})")
     catalog.printStats
   }
 

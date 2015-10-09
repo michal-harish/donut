@@ -55,7 +55,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def getBlock[X](p: COORD, mapper: ByteBuffer => X): X = segments.get(p._2).get(p._3, mapper)
 
-  def totalCapacityInBytes: Long = segments.synchronized { segments.asScala.map(_.usedBytes).sum }
+  def totalCapacityInBytes: Long = segments.synchronized { segments.asScala.map(_.totalSizeInBytes).sum }
 
   def markForDeletion(coord: COORD) = segments.get(coord._2).remove(coord._3)
 
@@ -135,6 +135,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
 
   def dealloc(p: COORD): Unit = segments.get(p._2).remove(p._3)
 
+  //TODO put(key, value) and if the size of the block equals the existing size, no need to append
   def append(key: ByteBuffer, value: ByteBuffer): COORD = {
     val p: COORD = alloc(if (value == null) 0 else value.remaining)
     try {
@@ -149,6 +150,7 @@ class ConcurrentSegmentCatalog(val segmentSizeMb: Int, val compressMinBlockSize:
   }
 
   def printStats: Unit = segments.synchronized {
+    println(s"LOGHASHMAP.CATALOG, CURRENT SEGMENT = ${currentSegment}")
     index.asScala.reverse.foreach(s => segments.get(s).printStats(s))
     segments.asScala.filter(segment => !index.asScala.exists(i => segments.get(i) == segment)).foreach(s => s.printStats(-1))
   }
