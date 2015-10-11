@@ -32,21 +32,6 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
 
   behavior of "ConcurrentLogHashMap"
 
-  it should "be consistent and fast in a single-threaded context" in {
-    val m = new ConcurrentLogHashMap(maxSizeInMb = 10, segmentSizeMb = 1, compressMinBlockSize = 4096)
-    val a = ByteBuffer.wrap("123456".getBytes)
-    m.put(a, ByteBuffer.wrap("Hello".getBytes))
-    m.put(a, ByteBuffer.wrap("Hello".getBytes))
-    m.get(a)
-    m.catalog.compact
-    m.catalog.allocSegment
-    m.get(a)
-    m.catalog.allocSegment
-    m.get(a)
-    m.catalog.compact
-    m.get(a)
-  }
-
   it should "behave consistently and perform in a multi-threaded context" in {
     val m = new ConcurrentLogHashMap(maxSizeInMb = 64, segmentSizeMb = 16, compressMinBlockSize = 16 * 1024)
     val words = List("Hello", "World", "Foo", "Bar")
@@ -90,6 +75,8 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     println(s"input count ${counter.get}, ${time.get} ms")
     println(s"PUT ALL > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
     m.size should be(counter.get)
+    m.index.size should be (m.size)
+    m.printStats
     m.compressRatio should be(1.0)
 
     getAll()

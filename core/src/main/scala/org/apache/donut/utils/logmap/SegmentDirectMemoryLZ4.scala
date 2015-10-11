@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory
 /**
  * Created by mharis on 02/10/15.
  *
- * Thread-Safe Off-Heap compaction storage with append-only memory and transparent lz4 compression
+ * Thread-Safe Off-Heap compaction storage with transparent lz4 compression
  */
 
 class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends Segment {
@@ -44,7 +44,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 
   private val memory = ByteBuffer.allocateDirect(capacity)
 
-  private val compactionLock = new ReentrantReadWriteLock
+  private val lock = new ReentrantReadWriteLock
 
   private val compressor = LZ4Factory.fastestInstance.highCompressor
 
@@ -71,6 +71,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 
   private[logmap] val lz4Buffer = new ThreadLocal[ByteBuffer] {
     val sizeInBytes = new AtomicInteger(0)
+
     override def initialValue = {
       val result = ByteBuffer.allocateDirect(compressor.maxCompressedLength(maxBlockSize.get))
       sizeInBytes.addAndGet(result.capacity)
@@ -90,72 +91,74 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 
   override def alloc(length: Int): Int = {
     var result: Int = -1
-    compactionLock.readLock.lock
+    lock.writeLock.lock
     try {
-      synchronized {
-        if (memory.remaining >= length + 5) {
-          val pointer = memory.position
-          memory.position(pointer + length + 5)
-          memory.put(pointer, 0)
-          memory.putInt(pointer + 1, length)
-          result = index.put(pointer)
-          counter += 1
-          uncompressedSizeInBytes addAndGet (length + 5)
-          maxBlockSize.setIfGreater(length)
-        }
+      if (memory.remaining >= length + 5) {
+        val pointer = memory.position
+        memory.position(pointer + length + 5)
+        memory.put(pointer, 0)
+        memory.putInt(pointer + 1, length)
+        result = index.put(pointer)
+        counter += 1
+        uncompressedSizeInBytes addAndGet (length + 5)
+        maxBlockSize.setIfGreater(length)
       }
     } finally {
-      compactionLock.readLock.unlock
+      lock.writeLock.unlock
     }
     result
   }
 
-  override def set(block: Int, value: ByteBuffer) = {
-    compactionLock.readLock.lock
-    try {
-      val pointer = index.get(block)
-      var destOffset = pointer + 5
-      if (value != null) {
-        var srcPos = value.position
-        while (srcPos < value.limit) {
-          memory.put(destOffset, value.get(srcPos))
-          destOffset += 1
-          srcPos += 1
-        }
+  override def setUnsafe(block: Int, value: ByteBuffer) = {
+    val pointer = index.get(block)
+    var destOffset = pointer + 5
+    if (value != null) {
+      var srcPos = value.position
+      while (srcPos < value.limit) {
+        memory.put(destOffset, value.get(srcPos))
+        destOffset += 1
+        srcPos += 1
       }
-    } finally {
-      compactionLock.readLock.unlock
     }
   }
 
   override def put(position: Int, value: ByteBuffer): Int = {
     var resultPosition = -1
-    compactionLock.readLock.lock
+    lock.writeLock.lock
     try {
       val length = value.remaining
-      synchronized {
-        if (memory.remaining >= length + 5) {
-          val pointer = memory.position
-          resultPosition = index.put(pointer, position)
-          if (resultPosition >= 0) {
-            memory.position(pointer + length + 5)
-            memory.put(pointer, 0)
-            memory.putInt(pointer + 1, length)
-            set(resultPosition, value)
-            counter += 1
-            uncompressedSizeInBytes addAndGet (length + 5)
-            maxBlockSize.setIfGreater(length)
-          }
+      val pointer = if (position >= 0 && memory.getInt(index.get(position) + 1) == length) {
+        //replace value exactly
+        index.get(position)
+      } else {
+        //append or replace we value of different length
+        if (position < 0) {
+          counter += 1
         }
+        uncompressedSizeInBytes addAndGet (length + 5)
+        maxBlockSize.setIfGreater(length)
+        val putPosition = memory.position
+        memory.position(memory.position + length + 5)
+        putPosition
+      }
+      if (pointer + length + 5 <= memory.capacity) {
+        resultPosition = index.put(pointer, position)
+        if (resultPosition < 0 || resultPosition != position) {
+          throw new IllegalStateException
+        }
+        memory.put(pointer, 0)
+        memory.putInt(pointer + 1, length)
+        setUnsafe(resultPosition, value)
+
       }
     } finally {
-      compactionLock.readLock.unlock
+      lock.writeLock.unlock
     }
     resultPosition
   }
 
   override def sizeOf(block: Int): Int = {
-    compactionLock.readLock.lock
+    lock.readLock.lock
     try {
       val pointer = index.get(block)
       if (pointer < 0) {
@@ -163,8 +166,8 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
       } else memory.get(pointer) match {
         case 0 => memory.getInt(pointer + 1)
         case 2 => {
-          val compressedGroupSize = memory.getInt(pointer + 1)
-          val uncompressedGroupSize = memory.getInt(pointer + 5)
+          //val compressedGroupSize = memory.getInt(pointer + 1)
+          //val uncompressedGroupSize = memory.getInt(pointer + 5)
           val nestedIndexSize = memory.getInt(pointer + 9)
           (0 to nestedIndexSize - 1).foreach(nb => {
             if (block == memory.getInt(pointer + 13 + nb * 12)) {
@@ -175,30 +178,21 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
         }
       }
     } finally {
-      compactionLock.readLock.unlock
+      lock.readLock.unlock
     }
   }
 
 
   override def remove(position: Int): Unit = {
-    compactionLock.readLock.lock
+    lock.writeLock.lock
     try {
-      synchronized {
-        index.put(-1, position)
-        counter -= 1
-        if (size == 0) {
-          compactionLock.readLock.unlock
-          compactionLock.writeLock.lock
-          try {
-            recycle
-          } finally {
-            compactionLock.readLock.lock
-            compactionLock.writeLock.unlock
-          }
-        }
+      index.put(-1, position)
+      counter -= 1
+      if (size == 0) {
+        recycle
       }
     } finally {
-      compactionLock.readLock.unlock
+      lock.writeLock.unlock
     }
   }
 
@@ -212,7 +206,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
    */
   override def get[X](block: Int, decoder: (ByteBuffer => X)): X = {
     if (!valid) throw new IllegalStateException("Segment is invalid")
-    compactionLock.readLock.lock
+    lock.readLock.lock
     try {
       val pointer = index.get(block)
       if (pointer < 0) {
@@ -248,28 +242,27 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
         if (blockBuffer.remaining == 0) null.asInstanceOf[X] else decoder(blockBuffer)
       }
     } finally {
-      compactionLock.readLock.unlock
+      lock.readLock.unlock
     }
   }
 
   override def recycle: Unit = {
-    compactionLock.writeLock.lock
+    lock.writeLock.lock
     try {
-      synchronized {
-        valid = true
-        uncompressedSizeInBytes.set(0)
-        maxBlockSize.set(0)
-        index.clear
-        memory.clear
-      }
+      valid = true
+      counter = 0
+      uncompressedSizeInBytes.set(0)
+      maxBlockSize.set(0)
+      index.clear
+      memory.clear
     } finally {
-      compactionLock.writeLock.unlock
+      lock.writeLock.unlock
     }
   }
 
   override def compact: Boolean = {
     if (!valid) throw new IllegalStateException("Segment is invalid")
-    compactionLock.writeLock.lock
+    lock.writeLock.lock
     try {
       val compactedBlockIndex = (0 to index.count - 1).filter(index.get(_) >= 0)
       val compactedSize = compactedBlockIndex.map(b => index.get(b)).distinct.map(pointer => memory.getInt(pointer + 1) + 5).sum
@@ -334,12 +327,12 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
         }
       }
     } finally {
-      compactionLock.writeLock.unlock
+      lock.writeLock.unlock
     }
   }
 
   override def compress: Boolean = {
-    compactionLock.writeLock.lock
+    lock.writeLock.lock
     try {
       compact // first normal compaction to make continuous blocks
       var start = -1
@@ -399,14 +392,14 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
       compact
       return true
     } finally {
-      compactionLock.writeLock.unlock
+      lock.writeLock.unlock
     }
   }
 
   override def printStats(s: Short): Unit = {
     println(s"SEGMENT[${s}] num.entries = ${size}, total.size = ${totalSizeInBytes / 1024 / 1024} Mb, " +
       s"(INDEX size = ${index.count}, capacity = ${index.capacityInBytes / 1024 / 1024} Mb) " +
-      s"load = ${usedBytes.toDouble * 100.0/ totalSizeInBytes} %,  " +
+      s"load = ${usedBytes.toDouble * 100.0 / totalSizeInBytes} %,  " +
       s"compression = ${compressRatio * 100.0} %")
   }
 

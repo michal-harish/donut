@@ -59,7 +59,7 @@ trait Segment {
    * @param block
    * @param value
    */
-  def set(block: Int, value: ByteBuffer)
+  def setUnsafe(block: Int, value: ByteBuffer)
 
   /**
    * @param block
