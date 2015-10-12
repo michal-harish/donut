@@ -1,11 +1,9 @@
 package org.apache.donut.utils.logmap
 
 import java.nio.ByteBuffer
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.{Executors, TimeUnit}
 
 import org.apache.donut.utils.ByteUtils
-import java.util.concurrent.TimeUnit
 import org.scalatest.Matchers
 
 import scala.util.Random
@@ -16,13 +14,12 @@ import scala.util.Random
 object LogMapInteractiveTest extends App with Matchers {
 
   val m = new ConcurrentLogHashMap(
-    maxSizeInMb = 32, segmentSizeMb = 2, compressMinBlockSize = 65535, indexLoadFactor = 0.7)
+    maxSizeInMb = 8, segmentSizeMb = 1, compressMinBlockSize = 65535, indexLoadFactor = 0.7)
 
-  val numThreads = 8
-  val numPuts = new AtomicLong(0)
+  val numThreads = 4
   val e = Executors.newFixedThreadPool(numThreads)
   val start = System.currentTimeMillis
-  val fraction = 1
+  val fraction = 10
   for (t <- (1 to numThreads)) {
     e.submit(new Runnable() {
       val r = new Random
@@ -40,10 +37,9 @@ object LogMapInteractiveTest extends App with Matchers {
       override def run(): Unit = {
         try {
           while (true) {
-            val k = System.currentTimeMillis / fraction
-            val word = words((k % words.length).toInt)
-            m.put(genKey(k), genVal(word))
-            numPuts.incrementAndGet
+            val t = System.currentTimeMillis
+            val shuffledWords = for (x <- 0 to 10) yield words(((t + x) % words.length).toInt)
+            m.put(genKey((t / fraction) + (r.nextGaussian * 1000).toLong), genVal(shuffledWords.mkString(",")))
           }
         } catch {
           case e: InterruptedException => return
@@ -55,21 +51,26 @@ object LogMapInteractiveTest extends App with Matchers {
     })
   }
 
+  val in = scala.io.Source.stdin.getLines
+
   while (!e.isTerminated) {
-    val in = scala.io.Source.stdin.getLines
-    while (in.hasNext) {
+    try {
       val c = in.next.split("\\s+").iterator
       c.next match {
-        case "" => println("Expected size cca " + ((System.currentTimeMillis - start) / fraction))
+        case "" => println(s"Time units ellapsed: ${(System.currentTimeMillis - start) / fraction }")
         case "compact" => m.compact
         case "compress" => m.applyCompression(c.next.toDouble)
         case "exit" => {
           e.shutdownNow
           e.awaitTermination(3, TimeUnit.SECONDS)
         }
+        case any => println("Usage:\n\t[ENTER]\t\tprint basic stats\n\tcompact\t\tcompact all segments\n\tcompress <fraction>\t\tcompress any segments in the tail of the log that occupies more than <fraction> of total hash map memory\n\texit")
       }
       m.printStats
-      println()
+    } catch {
+      case i: InterruptedException => e.shutdownNow
+      case t: Throwable => t.printStackTrace
     }
+    println()
   }
 }

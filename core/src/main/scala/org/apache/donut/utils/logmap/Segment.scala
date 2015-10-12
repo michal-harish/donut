@@ -33,9 +33,11 @@ trait Segment {
 
   def totalSizeInBytes: Int
 
+  def capacity: Int
+
   def usedBytes: Int
 
-  def compact: Boolean
+  def compact(minCompactToFreeFactor: Double): Boolean
 
   def compress: Boolean
 
@@ -59,7 +61,7 @@ trait Segment {
    * @param block
    * @param value
    */
-  def setUnsafe(block: Int, value: ByteBuffer)
+  private[logmap] def setUnsafe(block: Int, value: ByteBuffer)
 
   /**
    * @param block
@@ -68,10 +70,18 @@ trait Segment {
   def sizeOf(block: Int): Int
 
   /**
-   * Percentage of compressed data compared to its uncompressed size
+   * Proportion of compressed data compared to its uncompressed size
    * @return
    */
   def compressRatio: Double = 1.0
+
+  /**
+   * Multiplier of memory that can be freed by compaction in relation to available memory.
+   * E.g. if 80% of the segments memory is filled but half of that can be compacted out, the compactFactor = 2.0
+   * because 40% of memory can be freed by compaction while 20% is available.
+   * @return
+   */
+  def compactFactor: Double = 0.0
 
   /**
    * @param block

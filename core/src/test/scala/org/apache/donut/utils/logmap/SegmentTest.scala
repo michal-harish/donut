@@ -77,13 +77,13 @@ class SegmentTest extends FlatSpec with Matchers {
 
     segment.put(0, testBlock) should be(0)
 
-    segment.usedBytes should be > (40000)
+    segment.usedBytes should be < (40000)
 
     segment.compressRatio should be (1.0)
 
     segment.get(0).compareTo(testBlock) should be(0)
 
-    segment.compact should be(true)
+    segment.compact(0) should be(false)
 
     segment.usedBytes should be < (40000)
 
@@ -159,7 +159,7 @@ class SegmentTest extends FlatSpec with Matchers {
       s.put(-1, value)
     }
     println(s"size = ${s.usedBytes / 1024 / 1024} Mb, count = ${s.size}, compression = ${s.compressRatio} %")
-    s.compact should be (false)
+    s.compact(0) should be (false)
     s.usedBytes / 1024 / 1024 should be(12)
     s.compressRatio should be (1.0)
 
@@ -175,10 +175,10 @@ class SegmentTest extends FlatSpec with Matchers {
               val value = ByteBuffer.wrap((0 to 100).map(x => words(math.abs(random.nextInt) % words.size)).mkString(",").getBytes)
               s.put(i, value)
               if (i % 10000 == 0) {
-                s.compact
+                s.compact(0)
               }
             }
-            s.compact
+            s.compact(0)
           } catch {
             case e: Throwable => {
               e.printStackTrace()

@@ -58,6 +58,8 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
 
   private[donut] val bootSequence = new ConcurrentHashMap[String, Boolean]()
 
+  private[donut] def executeCommand(cmd: String) = {}
+
   protected def awaitingTermination
 
   protected def onShutdown

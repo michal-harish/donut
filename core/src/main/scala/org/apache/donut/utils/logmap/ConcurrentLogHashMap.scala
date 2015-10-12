@@ -26,7 +26,7 @@ import scala.collection.JavaConverters._
  * Created by mharis on 01/10/15.
  *
  * This is a specialised Thread-Safe HashMap based on in-memory block storage which may be partially compressed
- * dif a given minimum block size and load fraction conditions are met. The compression must be triggered as part
+ * if a given minimum block size and load fraction conditions are met. The compression must be triggered as part
  * of compaction. If the values that have been compressed are accessed again, the blocks containing them are
  * uncompressed into the latest segment where they travel normally in the history of log until they meet compression
  * criteria again.
@@ -39,16 +39,12 @@ import scala.collection.JavaConverters._
  * Each segments is a single pre-allocated block of memory which shrinks over time as the entries are popped to the
  * top segment every time they are accessed. This leads to segments slowly evaporating except for the top one.
  *
- * Every attempt to allocate a new memory segment is tracked and triggers compaction if the total memory needed
- * would exceed the number of megabytes defined in the constructor of the map.
- *
- * During compaction several things may happen. Firstly each segment is compacted without re-allocation removing
- * values that were marked for deletion by entries leaving for the top segment, decreasing actual load factor.
- * Entries that are not accessed for longer and longer remain as sediment in smaller segments so compaction will
- * remember each whose actual load factor falls below 0.5. Those will be added together creating a fossil segment.
- * The segments that are filled with data that is not being accessed for long period of time may be either first
- * compressed and wait for removal due to limit on the overall memory allocated for the program,
- * or removed directly depending on the character of the data it is being used for.
+ * Every attempt to allocate a new block of memory is tracked and triggers compaction under several conditions.
+ * First, if the compaction factor of the current block is large enough, that is by compacting the current segment
+ * we will free significant amount of memory, the current segment is compacted. If the current segment is compact
+ * enough and the new block doesn't fit within it, request for new segment allocation is made which can further
+ * trigger compression and segment recycling if the total memory usage of the hash map is larger than the maximum
+ * capacity given in the constructor.
  *
  */
 
@@ -118,32 +114,25 @@ class ConcurrentLogHashMap(
     }
   }
 
-  def indexSizeInBytes: Long = index.sizeInBytes
-
-  def logSizeInBytes: Long = {
+  def capacityInBytes: Long = {
     segmentsLock.readLock.lock
     try {
-      return segmentIndex.asScala.map(s => segments.get(s).totalSizeInBytes.toLong).sum
+      return segments.asScala.map(segment => segment.totalSizeInBytes.toLong).sum + index.sizeInBytes
     } finally {
       segmentsLock.readLock.unlock
     }
-
   }
 
-  def totalSizeInBytes: Long = logSizeInBytes + indexSizeInBytes
+  def totalSizeInBytes: Long = {
+    segmentsLock.readLock.lock
+    try {
+      return segmentIndex.asScala.map(s => segments.get(s).totalSizeInBytes.toLong).sum + index.sizeInBytes
+    } finally {
+      segmentsLock.readLock.unlock
+    }
+  }
 
   def load: Double = totalSizeInBytes.toDouble / maxSizeInBytes
-
-  def printStats: Unit = {
-    segmentsLock.readLock.lock
-    try {
-      println(s"LOGHASHMAP: index.size = ${index.size} seg.entires = ${size}  total.mb = ${totalSizeInBytes / 1024 / 1024} Mb  compression = ${compressRatio} (of that index: ${indexSizeInBytes / 1024 / 1024} Mb with load ${index.load * 100.0} %})")
-      segmentIndex.asScala.reverse.foreach(s => segments.get(s).printStats(s))
-      segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment)).foreach(s => s.printStats(-1))
-    } finally {
-      segmentsLock.readLock.unlock
-    }
-  }
 
   def contains(key: ByteBuffer): Boolean = {
     indexReader.lock
@@ -208,7 +197,7 @@ class ConcurrentLogHashMap(
           segmentsLock.readLock.unlock
         }
       }
-      val newIndexValue = allocBlock(value.remaining)
+      val newIndexValue = allocBlock(if (value == null) 0 else value.remaining)
       segments.get(newIndexValue._2).put(newIndexValue._3, value)
 
       index.put(key, newIndexValue)
@@ -285,7 +274,7 @@ class ConcurrentLogHashMap(
   def compact: Unit = {
     segmentsLock.readLock.lock
     try {
-      for (s <- 0 to (segments.size - 1)) segments.get(s).compact
+      for (s <- 0 to (segments.size - 1)) segments.get(s).compact(0)
     } finally {
       segmentsLock.readLock.unlock
     }
@@ -329,7 +318,11 @@ class ConcurrentLogHashMap(
   private def allocBlock(valueSize: Int): COORD = {
     segmentsLock.readLock.lock
     try {
-      val newBlock = segments.get(currentSegment).alloc(valueSize)
+      val segment = segments.get(currentSegment)
+      if (segment.compactFactor >= 3.0) {
+        segment.compact(3.0)
+      }
+      val newBlock = segment.alloc(valueSize)
       if (newBlock >= 0) {
         return (false, currentSegment, newBlock)
       }
@@ -346,13 +339,14 @@ class ConcurrentLogHashMap(
         return (false, currentSegment, newBlock)
       }
 
-      //now we can be sure no other thread has created new segment
-      currentSegment = -1
-
-      val bytesToAllocate = segmentSizeMb * 1024 * 1024 + index.initialCapacityKb ^ 2 // TODO estimate of index
-      if (totalSizeInBytes + bytesToAllocate > maxSizeInBytes) {
-        recycleNumBytes(totalSizeInBytes + bytesToAllocate - maxSizeInBytes)
+      //then see if recycling is required
+      val sample = segments.get(currentSegment)
+      val estimateRequiredBytes = segmentSizeMb * 1024 * 1024 + (sample.totalSizeInBytes - sample.capacity)
+      if (totalSizeInBytes + estimateRequiredBytes > maxSizeInBytes) {
+        recycleNumBytes(totalSizeInBytes + estimateRequiredBytes - maxSizeInBytes)
       }
+
+      currentSegment = -1
 
       for (s <- 0 to segments.size - 1) {
         if (segments.get(s).size == 0) {
@@ -377,20 +371,30 @@ class ConcurrentLogHashMap(
   }
 
   private def recycleNumBytes(numBytesToRecycle: Long): Unit = {
-    //    println(s"Recycling request for ${numBytesToRecycle / 1024 / 1024} Mb")
     var bytesToRemove = numBytesToRecycle
     var segmentsRemoved = new scala.collection.mutable.HashSet[Short]()
 
+    //drop segments that no longer fit in the max size (due to index growing)
+    while (capacityInBytes > maxSizeInBytes) {
+      if (segments.size <= 1) {
+        throw new OutOfMemoryError(
+          s"LogHashMap could not ensure ${numBytesToRecycle / 1024 / 1024} Mb will be available. " +
+          s"Current map size ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${index.sizeInBytes / 2014 / 2014} Mb")
+      }
+      val s = (segments.size - 1).toShort
+      segmentIndex.remove(s.asInstanceOf[Object])
+      bytesToRemove -= segments.get(s).totalSizeInBytes
+      segmentsRemoved += s
+      segments.remove(s)
+    }
+
     segmentIndex.asScala.map(s => (s, segments.get(s))).foreach { case (s, segment) => {
-      if (bytesToRemove > 0) {
-        bytesToRemove -= segment.totalSizeInBytes
-        if (s != currentSegment) {
-          println(s"Recycling segment ${s}")
+      if (bytesToRemove > 0 && s != currentSegment) {
+          bytesToRemove -= segment.totalSizeInBytes
           segmentsRemoved += s
           segmentIndex.remove(s.asInstanceOf[Object])
           segments.get(s).recycle
         }
-      }
     }
     }
     if (segmentsRemoved.size > 0) {
@@ -401,14 +405,24 @@ class ConcurrentLogHashMap(
         }
       })
     }
-    //    println(s"Size after recycling = ${totalSizeInBytes / 1024 / 1024} Mb")
-    if (totalSizeInBytes + numBytesToRecycle > maxSizeInBytes) {
-      printStats
-      throw new OutOfMemoryError(s"LogHashMap could not ensure ${numBytesToRecycle / 1024 / 1024} Mb will be available. " +
-        s"Current map size ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${indexSizeInBytes / 2014 / 2014} Mb")
-    }
-
   }
+
+  def printStats: Unit = {
+    segmentsLock.readLock.lock
+    try {
+      println(s"LOGHASHMAP: index.size = ${index.size} seg.entires = ${size} " +
+        s"total.capacity = ${capacityInBytes / 1024 / 1024} Mb " +
+        s"current.memory = ${size}" +
+        s"(of that index: ${index.sizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})" +
+        s", compression = ${compressRatio} ")
+      segmentIndex.asScala.reverse.foreach(s => segments.get(s).printStats(s))
+      segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment)).foreach(s => s.printStats(-1))
+    } finally {
+      segmentsLock.readLock.unlock
+    }
+  }
+
+
 
 }
 

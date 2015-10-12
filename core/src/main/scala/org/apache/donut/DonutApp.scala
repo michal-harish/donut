@@ -43,31 +43,14 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
   val taskOverheadMemMb = config.getProperty("task.overhead.memory.mb", "256").toInt
   val taskJvmArgs = config.getProperty("task.jvm.args", "")
   val taskPriority: Int = config.getProperty("task.priority", "0").toInt
-  val updateFrequencyMs = TimeUnit.SECONDS.toMillis(30)
+  val updateFrequencyMs = TimeUnit.MINUTES.toMillis(1)
 
   private var numLogicalPartitions = -1
   private var lastProgress: (Long, Float) = (-1, 0f)
 
-
-  final def runLocally(testOnlyOnePartition: Boolean): Unit = {
+  final def runOnYarn(awaitCompletion: Boolean): Unit = {
     try {
-      numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
-      val taskConstructor: Constructor[T] = taskClass.getConstructor(
-        classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
-      val executor = Executors.newFixedThreadPool(numLogicalPartitions)
-      if (testOnlyOnePartition) {
-        executor.submit(taskConstructor.newInstance(config, new Integer(0), new Integer(numLogicalPartitions), topics))
-      } else (0 to numLogicalPartitions - 1).foreach(lp => {
-        executor.submit(taskConstructor.newInstance(config, new Integer(lp), new Integer(numLogicalPartitions), topics))
-      })
-
-      executor.shutdown
-      while (true) {
-        if (executor.awaitTermination(updateFrequencyMs, TimeUnit.MILLISECONDS)) {
-          System.exit(0)
-        }
-        println(s"Progress ${getProgress * 100.0}%")
-      }
+      YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), awaitCompletion)
     } catch {
       case e: Throwable => {
         log.error("", e)
@@ -76,9 +59,51 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
     }
   }
 
-  final def runOnYarn(awaitCompletion: Boolean): Unit = {
+  /**
+   * runLocally will create a thread for each logical partition that would be a container in the YARN context.
+   * Any command received on the stdin will be given to all running tasks via executeCommand(...) method.
+   *
+   * Each task thread may still contain multiple fetcher threads depending on the partitioning scheme and
+   * cogroup and max.tasks configuration.
+   * 
+   * @param debugOnePartition if 'true' is passed, only one thread for logical partition 0 will be launched
+   */
+  final def runLocally(debugOnePartition: Boolean): Unit = {
     try {
-      YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), awaitCompletion)
+      numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
+      val taskConstructor: Constructor[T] = taskClass.getConstructor(
+        classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
+      val executor = Executors.newFixedThreadPool(numLogicalPartitions + 1)
+      val tasks: Seq[T] = if (debugOnePartition) {
+        val t0 = taskConstructor.newInstance(config, new Integer(0), new Integer(numLogicalPartitions), topics)
+        executor.submit(t0)
+        Seq(t0)
+      } else (0 to numLogicalPartitions - 1).map(lp => {
+        val t = taskConstructor.newInstance(config, new Integer(lp), new Integer(numLogicalPartitions), topics)
+        executor.submit(t)
+        t
+      })
+
+      executor.submit(new Runnable() {
+        val in = scala.io.Source.stdin.getLines
+        override def run(): Unit = {
+          print("\n>")
+          while(in.hasNext) {
+            val cmd = in.next
+            tasks.foreach(_.executeCommand(cmd))
+            print("\n>")
+          }
+        }
+      })
+
+      executor.shutdown
+
+      while (!executor.isTerminated) {
+        if (executor.awaitTermination(updateFrequencyMs, TimeUnit.MILLISECONDS)) {
+          System.exit(0)
+        }
+        println(s"Progress ${getProgress * 100.0}%")
+      }
     } catch {
       case e: Throwable => {
         log.error("", e)
