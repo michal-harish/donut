@@ -19,7 +19,7 @@
 package org.apache.donut.utils.logmap
 
 import java.nio.ByteBuffer
-import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 import net.jpountz.lz4.LZ4Factory
@@ -70,7 +70,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 
   override def compressRatio: Double = uncompressedSizeInBytes match {
     case 0 => 1.0
-    case x => usedBytes * 1.0 / (x + index.sizeInBytes )//+ lz4Buffer.sizeInBytes.get)
+    case x => usedBytes * 1.0 / (x + index.sizeInBytes) //+ lz4Buffer.sizeInBytes.get)
   }
 
   override def compactFactor: Double = compactableMemory.toDouble / (capacity - memory.position)
@@ -233,7 +233,8 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
           case 2 => {
             val uncompressedLength = sliceBuffer.getInt
             if (log.isTraceEnabled) {
-              log.trace(s"accessing block ${block} in compressed group @ ${pointer}, compressed = ${blockLength}, uncompressed = ${uncompressedLength}")
+              log.trace(s"accessing block ${block} in compressed group @ ${pointer}, " +
+                s"compressed = ${blockLength}, uncompressed = ${uncompressedLength}")
             }
             val nestedIndexSize = sliceBuffer.getInt
             val nestedIndex: Map[Int, (Int, Int)] = (0 to nestedIndexSize - 1).map { nb => {
@@ -281,19 +282,19 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
           return false
         }
       }
-      val compactedBlockIndex = (0 to index.count - 1).filter(index.get(_) >= 0)
-      val compactedSize = compactedBlockIndex.map(b => index.get(b)).distinct.map(pointer => memory.getInt(pointer + 1) + 5).sum
+      val compactIndex = (0 to index.count - 1).filter(index.get(_) >= 0)
+      val compactedSize = compactIndex.map(b => index.get(b)).distinct.map(pointer => memory.getInt(pointer + 1) + 5).sum
 
       if (compactedSize == memory.position) {
         return false
       } else if (log.isDebugEnabled) {
-        log.debug(s"Compacting ${compactedBlockIndex.size} blocks to from ${memory.position} to ${compactedSize} bytes")
+        log.debug(s"Compacting ${compactIndex.size} blocks to from ${memory.position} to ${compactedSize} bytes")
       }
       if (compactedSize < 0) {
         throw new IllegalStateException("Segment memory is corrupt!")
       }
       try {
-        val sortedBlockIndex = compactedBlockIndex.map(b => (index.get(b), b)).sorted
+        val sortedBlockIndex = compactIndex.map(b => (index.get(b), b)).sorted
         uncompressedSizeInBytes = 0
         compactableMemory = 0
         maxBlockSize.set(0)
@@ -386,7 +387,8 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
               }
               }
 
-              val compressedLen = compressor.compress(memory, pointer, lz4UncompressedChunkLen, buffer, buffer.position, lz4UncompressedChunkLen)
+              val compressedLen = compressor.compress(
+                memory, pointer, lz4UncompressedChunkLen, buffer, buffer.position, lz4UncompressedChunkLen)
               buffer.putInt(1, 4 + nestedIndexSize + compressedLen)
               var offset = 0
               val limit = 9 + nestedIndexSize + compressedLen
@@ -398,7 +400,8 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
                 index.put(pointer, m)
               }
               if (log.isTraceEnabled) {
-                log.trace(s"@${pointer} compression of blocks [${start}..${end}] of ${lz4UncompressedChunkLen} bytes down to ${memory.getInt(pointer + 1)} bytes at rate ${compressedLen * 100.0 / lz4UncompressedChunkLen} %")
+                log.trace(s"@${pointer} compression of blocks [${start}..${end}] of ${lz4UncompressedChunkLen} bytes " +
+                  s" to ${memory.getInt(pointer + 1)} bytes; rate ${compressedLen * 100.0 / lz4UncompressedChunkLen} %")
               }
             } finally {
               start = -1

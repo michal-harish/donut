@@ -21,10 +21,8 @@ package org.apache.donut.memstore
 import java.nio.ByteBuffer
 
 /**
- * All implementation of the MemStore must:
- *    1. Allow concurrent writes
- *    2. support nulls values
- *    3) Honor expiration limits they expose within 1 second
+ * All implementation of the MemStore must allow concurrent writes, support nulls values and honour expiration
+ * limits they expose, at minimum the size of the store in megabytes.
  */
 abstract class MemStore {
 
@@ -45,5 +43,7 @@ abstract class MemStore {
   def put(key: ByteBuffer, value: ByteBuffer): Unit
 
   def iterator: Iterator[(ByteBuffer, ByteBuffer)]
+
+  def printStats: Unit
 
 }

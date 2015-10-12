@@ -54,23 +54,21 @@ class ConcurrentLogHashMap(
                             val compressMinBlockSize: Int,
                             val indexLoadFactor: Double = 0.7) {
 
-  //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into
-  // ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
-
-  //TODO def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need
-  // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate against the index
-
-  //TODO when compacting, if there are 2 or more segments with joint load <= 1.0 merge into one of them and recycle the others
-
-  //TODO custom class of ByteBuffer for lz4 buffers could remember which block is it pointing to but if we'll implement
-  //always decompressing the entire block into the current segmet that doesn't need to happen
-
-  // TODO At the moment, if a block is being moved (by get-touch) from a compressed group it will also remain in the
+  //TODO design the compression scheme and trigger followed by a merge of segments with joint load factor =< 1.0
+  // - At the moment, if a block is being moved (by get-touch) from a compressed group it will also remain in the
   // compressed group - what should really happen is that since we're uncompressing the block it would make sense
   // to first re-store all blocks it contains within the current segment not just the one being requested.
+  // - a custom class of ByteBuffer for lz4 buffers could remember which block is it pointing to but if we'll implement
+  // always decompressing the entire block into the current segmet that doesn't need to happen
+
+  //TODO def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need
+  // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate in the index
 
   //TODO generalise hash table into  VarHashTable[K] and use K.hashCode so that we can do correction for 0 and
   // Int.MinValue hashCodes transparently
+
+  //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into
+  // ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
 
   val maxSizeInBytes = maxSizeInMb * 1024 * 1024
 
@@ -362,7 +360,8 @@ class ConcurrentLogHashMap(
 
       segmentIndex.add(currentSegment)
       segments.get(currentSegment).alloc(valueSize) match {
-        case -1 => throw new IllegalArgumentException(s"Could not allocate block of length `${valueSize / 1024}` Kb in an empty segment of size " + segmentSizeMb + " Mb")
+        case -1 => throw new IllegalArgumentException(s"Could not allocate block of length `${valueSize / 1024}` Kb " +
+          s"in an empty segment of size " + segmentSizeMb + " Mb")
         case newBlock => return (false, currentSegment, newBlock)
       }
     } finally {
@@ -416,15 +415,10 @@ class ConcurrentLogHashMap(
         s"(of that index: ${index.sizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})" +
         s", compression = ${compressRatio} ")
       segmentIndex.asScala.reverse.foreach(s => segments.get(s).printStats(s))
-      segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment)).foreach(s => s.printStats(-1))
+      segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment))
+        .foreach(s => s.printStats(-1))
     } finally {
       segmentsLock.readLock.unlock
     }
   }
-
-
-
 }
-
-
-
