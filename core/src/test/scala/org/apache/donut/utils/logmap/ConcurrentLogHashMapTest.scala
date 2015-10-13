@@ -86,34 +86,34 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     m.compressRatio should be(1.0)
     getAll()
 
-    m.applyCompression(0.75)
-    println(s"COMPRESS > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
-    m.compressRatio should be < (0.7)
-    getAll()
-
-    putMoreThanMaxAllowed
-    println(s"EXTRA PUT ${counter.get}")
-    println(s"PUT MORE> ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
-    m.totalSizeInBytes should be <= (m.maxSizeInBytes)
-    m.size should be < (counter.get)
-    m.size should be > 70000
-
-    m.applyCompression(1.0)
-
-    def putMoreThanMaxAllowed = {
-      val digest = MessageDigest.getInstance("MD5")
-      val input = (((numThreads + 1) * stepFactor) to ((numThreads + 10) * stepFactor - 1)).map(i => (
-        genKey(i, digest),
-        ByteBuffer.wrap((0 to numWords).map(x => words(i % words.size)).mkString(",").getBytes))
-      ).toMap
-      counter.addAndGet(input.size)
-      val ts = System.currentTimeMillis
-      input.foreach { case (key, value) => {
-        m.put(key, value)
-      }
-      }
-      time.addAndGet(System.currentTimeMillis - ts)
-    }
+//    m.applyCompression(0.75)
+//    println(s"COMPRESS > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
+//    m.compressRatio should be < (0.7)
+//    getAll()
+//
+//    putMoreThanMaxAllowed
+//    println(s"EXTRA PUT ${counter.get}")
+//    println(s"PUT MORE> ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
+//    m.totalSizeInBytes should be <= (m.maxSizeInBytes)
+//    m.size should be < (counter.get)
+//    m.size should be > 70000
+//
+//    m.applyCompression(1.0)
+//
+//    def putMoreThanMaxAllowed = {
+//      val digest = MessageDigest.getInstance("MD5")
+//      val input = (((numThreads + 1) * stepFactor) to ((numThreads + 10) * stepFactor - 1)).map(i => (
+//        genKey(i, digest),
+//        ByteBuffer.wrap((0 to numWords).map(x => words(i % words.size)).mkString(",").getBytes))
+//      ).toMap
+//      counter.addAndGet(input.size)
+//      val ts = System.currentTimeMillis
+//      input.foreach { case (key, value) => {
+//        m.put(key, value)
+//      }
+//      }
+//      time.addAndGet(System.currentTimeMillis - ts)
+//    }
 
     def g = (b: ByteBuffer) => {
       val a = new Array[Byte](b.remaining)

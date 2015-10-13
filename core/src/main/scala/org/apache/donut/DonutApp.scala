@@ -68,14 +68,14 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
    * 
    * @param debugOnePartition if 'true' is passed, only one thread for logical partition 0 will be launched
    */
-  final def runLocally(debugOnePartition: Boolean): Unit = {
+  final def runLocally(debugOnePartition: Int = - 1): Unit = {
     try {
       numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
       val taskConstructor: Constructor[T] = taskClass.getConstructor(
         classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
       val executor = Executors.newFixedThreadPool(numLogicalPartitions + 1)
-      val tasks: Seq[T] = if (debugOnePartition) {
-        val t0 = taskConstructor.newInstance(config, new Integer(0), new Integer(numLogicalPartitions), topics)
+      val tasks: Seq[T] = if (debugOnePartition >= 0) {
+        val t0 = taskConstructor.newInstance(config, new Integer(debugOnePartition), new Integer(numLogicalPartitions), topics)
         executor.submit(t0)
         Seq(t0)
       } else (0 to numLogicalPartitions - 1).map(lp => {

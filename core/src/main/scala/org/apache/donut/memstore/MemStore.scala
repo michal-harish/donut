@@ -30,8 +30,6 @@ abstract class MemStore {
 
   def sizeInBytes: Long
 
-  def applyCompression(fraction: Double)
-
   def compressRatio: Double
 
   def contains(key: ByteBuffer): Boolean

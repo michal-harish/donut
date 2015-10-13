@@ -39,7 +39,7 @@ trait Segment {
 
   def compact(minCompactToFreeFactor: Double): Boolean
 
-  def compress: Boolean
+//  def compress: Boolean
 
   def recycle: Unit
 

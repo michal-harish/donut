@@ -127,24 +127,25 @@ class SegmentTest extends FlatSpec with Matchers {
     }
     println(s"${numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
     segment.printStats(0)
-    segment.compress
-    println(s"COMPRESS > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
-
-    segment.compressRatio should be < (0.2)
-    for (p <- (0 to numEntries - 1)) {
-      segment.get(p) should be(testBlock)
-    }
-
-    //after compression we should be able to fit more blocks in
-    for (p <- (0 to numEntries / 2 - 1)) {
-      segment.put(-1, testBlock) should be(numEntries + p)
-    }
-    println(s"${numEntries / 2} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
-
-    for (p <- (0 to numEntries + (numEntries / 2) - 1)) {
-      segment.get(p) should be(testBlock)
-    }
-    println(s"${1.5 * numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
+//  TODO separate compression test but depending on a design this may be only higher level class functionality
+//    segment.compress
+//    println(s"COMPRESS > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
+//
+//    segment.compressRatio should be < (0.2)
+//    for (p <- (0 to numEntries - 1)) {
+//      segment.get(p) should be(testBlock)
+//    }
+//
+//    //after compression we should be able to fit more blocks in
+//    for (p <- (0 to numEntries / 2 - 1)) {
+//      segment.put(-1, testBlock) should be(numEntries + p)
+//    }
+//    println(s"${numEntries / 2} x PUT > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
+//
+//    for (p <- (0 to numEntries + (numEntries / 2) - 1)) {
+//      segment.get(p) should be(testBlock)
+//    }
+//    println(s"${1.5 * numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
 
   }
 

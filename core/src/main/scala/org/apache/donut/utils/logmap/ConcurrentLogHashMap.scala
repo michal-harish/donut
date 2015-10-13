@@ -54,6 +54,18 @@ class ConcurrentLogHashMap(
                             val compressMinBlockSize: Int,
                             val indexLoadFactor: Double = 0.7) {
 
+  // FIXME - the following inconsitency was observed with real data stream but escapes the multi-threaded unit test
+  //  java.lang.ArrayIndexOutOfBoundsException: 3359648 + 4 > 4
+  //  at org.apache.donut.utils.logmap.GrowableByteBuffer.getInt(GrowableByteBuffer.scala:60)
+  //  at org.apache.donut.utils.logmap.IntIndex.get(IntIndex.scala:39)
+  //  at org.apache.donut.utils.logmap.SegmentDirectMemoryLZ4.sizeOf(SegmentDirectMemoryLZ4.scala:174)
+  //  at org.apache.donut.utils.logmap.SegmentDirectMemoryLZ4.remove(SegmentDirectMemoryLZ4.scala:199)
+  //  at org.apache.donut.utils.logmap.ConcurrentLogHashMap.dealloc(ConcurrentLogHashMap.scala:271)
+  //  at org.apache.donut.utils.logmap.ConcurrentLogHashMap.put(ConcurrentLogHashMap.scala:193)
+  //  at org.apache.donut.memstore.MemStoreLogMap.put(MemStoreLogMap.scala:34)
+  //  at net.imagini.dxp.graphstream.connectedbsp.ConnectedBSPProcessor.bootState(ConnectedBSPProcessor.scala:56)
+  //  at net.imagini.dxp.graphstream.connectedbsp.ConnectedBSPProcessingUnit$$anon$1.handleMessage(ConnectedBSPProcessingUnit.scala:52)
+
   //TODO design the compression scheme and trigger followed by a merge of segments with joint load factor =< 1.0
   // - At the moment, if a block is being moved (by get-touch) from a compressed group it will also remain in the
   // compressed group - what should really happen is that since we're uncompressing the block it would make sense
@@ -61,11 +73,12 @@ class ConcurrentLogHashMap(
   // - a custom class of ByteBuffer for lz4 buffers could remember which block is it pointing to but if we'll implement
   // always decompressing the entire block into the current segmet that doesn't need to happen
 
-  //TODO def iterator[X] returns unsafe iterator as it unlocks the indexReader right after instantiation so we need
+  //TODO def iterator[X] returns unsafe iterator as it unlocks the reader right after the instantiation so we need
   // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate in the index
 
   //TODO generalise hash table into  VarHashTable[K] and use K.hashCode so that we can do correction for 0 and
-  // Int.MinValue hashCodes transparently
+  // Int.MinValue hashCodes transparently. Also atm the first 4 bytes of any key:ByteBuffer
+  // is taken to be the hashCode of the key which is sort of built around Vid implementation.
 
   //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into
   // ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
@@ -241,13 +254,11 @@ class ConcurrentLogHashMap(
             writer.lock
             try {
               index.put(key, newIndexValue)
+              dealloc(oldIndexValue)
             } finally {
               reader.lock
               writer.unlock
             }
-
-            //after moving the index pointer, remove the old block
-            dealloc(oldIndexValue)
 
             getBlock(newIndexValue, mapper)
           }
@@ -385,21 +396,21 @@ class ConcurrentLogHashMap(
     }
   }
 
-  def applyCompression(fraction: Double): Unit = {
-    val sizeThreshold = (maxSizeInBytes * (1.0 - fraction)).toInt
-
-    reader.lock
-    try {
-      var cumulativeSize = 0
-      segmentIndex.asScala.map(segments.get(_)).foreach(segment => {
-        cumulativeSize += segment.usedBytes
-        if (cumulativeSize > sizeThreshold) {
-          segment.compress
-        }
-      })
-    } finally {
-      reader.unlock
-    }
-  }
+//  def applyCompression(fraction: Double): Unit = {
+//    val sizeThreshold = (maxSizeInBytes * (1.0 - fraction)).toInt
+//
+//    reader.lock
+//    try {
+//      var cumulativeSize = 0
+//      segmentIndex.asScala.map(segments.get(_)).foreach(segment => {
+//        cumulativeSize += segment.usedBytes
+//        if (cumulativeSize > sizeThreshold) {
+////          segment.compress
+//        }
+//      })
+//    } finally {
+//      reader.unlock
+//    }
+//  }
 
 }

@@ -57,13 +57,18 @@ object LogMapInteractiveTest extends App with Matchers {
     try {
       val c = in.next.split("\\s+").iterator
       c.next match {
-        case "" => println(s"Time units ellapsed: ${(System.currentTimeMillis - start) / fraction }")
-        case "compress" => m.applyCompression(c.next.toDouble)
+        case "" => {
+          println(s"Time units ellapsed: ${(System.currentTimeMillis - start) / fraction }")
+        }
+        //case "compress" => m.applyCompression(c.next.toDouble)
         case "exit" => {
           e.shutdownNow
           e.awaitTermination(3, TimeUnit.SECONDS)
         }
-        case any => println("Usage:\n\t[ENTER]\t\tprint basic stats\n\tcompact\t\tcompact all segments\n\tcompress <fraction>\t\tcompress any segments in the tail of the log that occupies more than <fraction> of total hash map memory\n\texit")
+        case any => println("Usage:" +
+          "\n\t[ENTER]\t\tprint basic stats" +
+          "\n\tcompress <fraction>\t\tcompress any segments in the tail of the log that occupies more than <fraction> of total hash map memory" +
+          "\n\texit")
       }
       m.printStats
     } catch {

@@ -304,6 +304,9 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
         var prevPointerMoved = -1
         sortedBlockIndex.foreach { case (pointer, b) => {
           try {
+            if (prevPointer > -1 && pointer < prevPointer) {
+              throw new IllegalStateException("Illegal block pointer ordering")
+            }
             if (pointer == prevPointer) {
               index.put(prevPointerMoved, b)
             } else {
@@ -350,72 +353,98 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     }
   }
 
-  override def compress: Boolean = {
-    lock.writeLock.lock
-    try {
-      compact(0) // first normal compaction to make continuous blocks
-      var start = -1
-      var lz4UncompressedChunkLen = 0
-      var end = -1
-      (0 to index.count - 1).filter(index.get(_) >= 0).foreach { b =>
-        val pointer = index.get(b)
-        val blockType = memory.get(pointer)
-        val blockLength = memory.getInt(pointer + 1)
-        val wrappedLength = blockLength + 5
-        if (blockType == 0) {
-          if (start == -1) start = b
-          end = b
-          lz4UncompressedChunkLen += wrappedLength
-        }
-        if (blockType != 0 || b == index.count - 1 || lz4UncompressedChunkLen >= compressMinBlockSize) {
-          if (start >= 0) {
-            try {
-              val pointer = index.get(start)
-              val nestedIndex = (start to end).map(b => (b, index.get(b) - pointer, memory.getInt(index.get(b) + 1)))
-              val nestedIndexSize = 4 + nestedIndex.size * 12
-              maxBlockSize.setIfGreater(9 + nestedIndexSize + compressor.maxCompressedLength(lz4UncompressedChunkLen))
-              val buffer = lz4Buffer.get
-              buffer.clear
-              buffer.put(2.toByte) //block type 2 - grouped blocks
-              buffer.putInt(0) //reserved for compressed block length
-              buffer.putInt(lz4UncompressedChunkLen) //total uncompressed len
-              buffer.putInt(nestedIndex.size) //nested index structure for retrieving the blocks after decompression
-              nestedIndex.foreach { case (b, nestedPointer, nestedBlockSize) => {
-                buffer.putInt(b)
-                buffer.putInt(nestedPointer)
-                buffer.putInt(nestedBlockSize)
-              }
-              }
-
-              val compressedLen = compressor.compress(
-                memory, pointer, lz4UncompressedChunkLen, buffer, buffer.position, lz4UncompressedChunkLen)
-              buffer.putInt(1, 4 + nestedIndexSize + compressedLen)
-              var offset = 0
-              val limit = 9 + nestedIndexSize + compressedLen
-              while (offset < limit) {
-                memory.put(pointer + offset, buffer.get(offset))
-                offset += 1
-              }
-              for (m <- (start to end)) {
-                index.put(pointer, m)
-              }
-              if (log.isTraceEnabled) {
-                log.trace(s"@${pointer} compression of blocks [${start}..${end}] of ${lz4UncompressedChunkLen} bytes " +
-                  s" to ${memory.getInt(pointer + 1)} bytes; rate ${compressedLen * 100.0 / lz4UncompressedChunkLen} %")
-              }
-            } finally {
-              start = -1
-              lz4UncompressedChunkLen = 0
-            }
-          }
-        }
-      }
-      compact(0)
-      return true
-    } finally {
-      lock.writeLock.unlock
-    }
-  }
+//  override def compress: Boolean = {
+//    lock.writeLock.lock
+//    try {
+//      compact(0) // first normal compaction to make order memory blocks into consecutive chunks
+//      val consecutiveBlockIndex = (0 to index.count - 1).filter(index.get(_) >= 0).map(b => (index.get(b), b)).sorted
+//      var start = -1
+//      var uncompressedBlockLen = 0
+//      var end = -1
+//      consecutiveBlockIndex.foreach { case (pointer, b) =>
+//        val blockType = memory.get(pointer)
+//        val blockLength = memory.getInt(pointer + 1)
+//        val wrappedLength = blockLength + 5
+//        println(s"${b} -> ${pointer} .. wrap.length ${wrappedLength}")
+//        if (start >=0 && index.get(start) + uncompressedBlockLen != pointer) {
+//          throw new IllegalStateException(s"Non-consecutive block memory ordering, expected block pointer ${start} -> ${index.get(start)} + ${uncompressedBlockLen} = ${index.get(start) + uncompressedBlockLen}, got ${pointer}")
+//        }
+//        if (blockType == 0) {
+//          if (start == -1) start = b
+//          end = b
+//          uncompressedBlockLen += wrappedLength
+//        }
+//
+//        if (blockType != 0 || b == index.count - 1 || uncompressedBlockLen >= compressMinBlockSize) {
+//          if (start >= 0) {
+//            println(s"${b} type {$blockType} triggering compression of blocks[${start} .. ${end}] with total uncompressed length ${uncompressedBlockLen}")
+//            try {
+//              if (uncompressedBlockLen > compressMinBlockSize * 10) {
+//                throw new ArrayIndexOutOfBoundsException
+//              }
+//
+//              val pointer = index.get(start)
+//              println(s"compression source memory [${start} -> ${pointer} .. ${end} -> ${pointer + uncompressedBlockLen}]")
+//              val nestedIndex = (start to end).map(b => (b, index.get(b) - pointer, memory.getInt(index.get(b) + 1)))
+//              val nestedIndexSize = 4 + nestedIndex.size * 12
+//              maxBlockSize.setIfGreater(9 + nestedIndexSize + compressor.maxCompressedLength(uncompressedBlockLen))
+//              val buffer = lz4Buffer.get
+//
+//              buffer.clear
+//              buffer.put(2.toByte) //block type 2 - grouped blocks
+//              buffer.putInt(0) //reserved for compressed block length
+//              buffer.putInt(uncompressedBlockLen) //total uncompressed len
+//              buffer.putInt(nestedIndex.size) //nested index structure for retrieving the blocks after decompression
+//              nestedIndex.foreach { case (b, nestedPointer, nestedBlockSize) => {
+//                buffer.putInt(b)
+//                buffer.putInt(nestedPointer)
+//                buffer.putInt(nestedBlockSize)
+//              }
+//              }
+//
+//              val compressedLen = compressor.compress(
+//                memory, pointer, uncompressedBlockLen, buffer, buffer.position, uncompressedBlockLen)
+//
+//              val limit = 9 + nestedIndexSize + compressedLen
+//
+//              println(s"compress buffer.capactity = ${buffer.capacity}, index = ${nestedIndexSize}, compressedLen = ${compressedLen}, buffer.limit = ${limit}")
+//
+//              if (limit < uncompressedBlockLen) {
+//                buffer.putInt(1, 4 + nestedIndexSize + compressedLen)
+//                var offset = 0
+//
+//                while (offset < limit) {
+//                  memory.put(pointer + offset, buffer.get(offset))
+//                  offset += 1
+//                }
+//                for (m <- (start to end)) {
+//                  index.put(pointer, m)
+//                }
+//                //                if (log.isTraceEnabled) {
+//                //                  log.trace
+//                println(s"@${pointer} compression of blocks [${start}..${end}] of ${uncompressedBlockLen} bytes to pointer [${pointer}..${pointer + limit - 1}}]" +
+//                  s" to ${memory.getInt(pointer + 1)} bytes; rate ${compressedLen * 100.0 / uncompressedBlockLen} %")
+//                //                }
+//
+//                start = -1
+//                uncompressedBlockLen = 0
+//
+//              }
+//            } catch {
+//              case e: ArrayIndexOutOfBoundsException => {
+//                println(s"block ${b} -> ${pointer} of type ${blockType} = wrap.length = ${wrappedLength}")
+//                System.exit(5)
+//              }
+//            }
+//          }
+//        }
+//      }
+//      compact(0)
+//      return true
+//    } finally {
+//      lock.writeLock.unlock
+//    }
+//  }
 
   override def printStats(s: Short): Unit = {
     println(s"SEGMENT[${s}] num.entries = ${size}, total.size = ${totalSizeInBytes / 1024 / 1024} Mb " +
