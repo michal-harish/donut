@@ -42,6 +42,6 @@ abstract class MemStore {
 
   def iterator: Iterator[(ByteBuffer, ByteBuffer)]
 
-  def printStats: Unit
+  def printStats(details: Boolean): Unit
 
 }

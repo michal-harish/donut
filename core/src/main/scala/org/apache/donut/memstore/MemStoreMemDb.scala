@@ -83,7 +83,7 @@ class MemStoreMemDb(val maxSizeInMb: Int) extends MemStore {
 
   override def compressRatio: Double = 1.0
 
-  override def printStats: Unit = {
+  override def printStats(details: Boolean): Unit = {
       println(s"MemDb.size = ${size}   MemDb.memory = ${sizeInBytes / 1024 / 1024} Mb")
   }
 }

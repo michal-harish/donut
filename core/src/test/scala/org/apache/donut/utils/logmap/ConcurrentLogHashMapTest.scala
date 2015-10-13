@@ -63,11 +63,11 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
       }
     }
     genSegment(1000000)
-    map.printStats
+    map.printStats(true)
     genSegment(2000000)
-    map.printStats
+    map.printStats(true)
     genSegment(1000000) //pushing out existing value from the last segment
-    map.printStats
+    map.printStats(true)
   }
 
   it should "behave consistently and perform (multi-threaded) " in {
@@ -114,7 +114,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     println(s"PUT ALL > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
     m.size should be(counter.get)
     m.index.size should be(m.size)
-    m.printStats
+    m.printStats(true)
     m.compressRatio should be(1.0)
 
     getAll()

@@ -373,7 +373,7 @@ class ConcurrentLogHashMap(
     }
   }
 
-  def printStats: Unit = {
+  def printStats(details: Boolean): Unit = {
     reader.lock
     try {
       println(s"LOGHASHMAP: index.size = ${index.size} seg.entires = ${size} " +
@@ -381,9 +381,11 @@ class ConcurrentLogHashMap(
         s"current.memory = ${totalSizeInBytes / 1024 / 1024} Mb " +
         s"(of that index: ${index.sizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})" +
         s", compression = ${compressRatio} ")
-      segmentIndex.asScala.reverse.foreach(s => segments.get(s).printStats(s))
-      segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment))
-        .foreach(s => s.printStats(-1))
+      if (details) {
+        segmentIndex.asScala.reverse.foreach(s => segments.get(s).printStats(s))
+        segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment))
+          .foreach(s => s.printStats(-1))
+      }
     } finally {
       reader.unlock
     }

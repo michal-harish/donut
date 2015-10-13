@@ -33,5 +33,5 @@ class MemStoreLogMap(val maxSizeInMb: Int, val segmentSizeMb: Int, val compressM
 
   override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = map.iterator
 
-  override def printStats: Unit = map.printStats
+  override def printStats(details: Boolean): Unit = map.printStats(details)
 }
