@@ -58,7 +58,6 @@ object LogMapInteractiveTest extends App with Matchers {
       val c = in.next.split("\\s+").iterator
       c.next match {
         case "" => println(s"Time units ellapsed: ${(System.currentTimeMillis - start) / fraction }")
-        case "compact" => m.compact
         case "compress" => m.applyCompression(c.next.toDouble)
         case "exit" => {
           e.shutdownNow

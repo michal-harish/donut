@@ -18,12 +18,11 @@ package org.apache.donut
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 import kafka.api.FetchResponse
 import kafka.common.{ErrorMapping, TopicAndPartition}
-import kafka.message.{ByteBufferMessageSet, MessageAndOffset}
+import kafka.message.ByteBufferMessageSet
 import org.slf4j.LoggerFactory
 
 /**
@@ -87,9 +86,9 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
               nextFetchOffset = nextFetchOffsetHandled
               if (nextFetchOffsetHandled > lastCheckpointCommitValue) {
                 val nanoTime = System.nanoTime
-                if (lastCheckpointCommitTime + checkpointCommitIntervalNanos < System.nanoTime) {
+                if (lastCheckpointCommitTime + checkpointCommitIntervalNanos < nanoTime) {
                   log.debug(s"Committing offset for ${topicAndPartition} in group {$groupId} to ${nextFetchOffset}, num message = ${nextFetchOffsetHandled - lastCheckpointCommitValue}")
-                  consumer.commitOffset(nextFetchOffsetHandled)
+                  consumer.commitOffset(nextFetchOffsetHandled, failOnError = false)
                   lastCheckpointCommitTime = nanoTime
                   lastCheckpointCommitValue = nextFetchOffsetHandled
                 }

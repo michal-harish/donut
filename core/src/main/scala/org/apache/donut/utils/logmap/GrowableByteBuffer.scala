@@ -56,8 +56,8 @@ class GrowableByteBuffer(val growBlockSize: Int) {
   }
 
   def getInt(offset: Int): Int = {
-    if (offset < 0) throw new ArrayIndexOutOfBoundsException
-    if (offset + 4 > size) throw new ArrayIndexOutOfBoundsException
+    if (offset < 0) throw new ArrayIndexOutOfBoundsException(s"${offset} < 0")
+    if (offset + 4 > size) throw new ArrayIndexOutOfBoundsException(s"${offset} + 4 > ${size}")
     data.getInt(offset)
   }
 

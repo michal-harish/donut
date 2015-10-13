@@ -77,11 +77,7 @@ class ConcurrentLogHashMap(
   type COORD = (Boolean, Short, Int)
 
   private[logmap] val index = new VarHashTable(initialCapacityKb = 64, indexLoadFactor)
-  private val indexLock = new ReentrantReadWriteLock
-  private val indexReader = indexLock.readLock
-  private val indexWriter = indexLock.writeLock
 
-  private val segmentsLock = new ReentrantReadWriteLock
   @volatile private var currentSegment: Short = 0
   private val segmentIndex = new java.util.ArrayList[Short]
   private val segments = new java.util.ArrayList[Segment]() {
@@ -90,61 +86,67 @@ class ConcurrentLogHashMap(
     currentSegment = 0
   }
 
+  private val lock = new ReentrantReadWriteLock
+
+  private val reader = lock.readLock
+
+  private val writer = lock.writeLock
+
   def numSegments = segments.size
 
   def size: Int = {
-    segmentsLock.readLock.lock
+    reader.lock
     try {
       return segments.asScala.map(_.size).sum
     } finally {
-      segmentsLock.readLock.unlock
+      reader.unlock
     }
   }
 
   def compressRatio: Double = {
-    segmentsLock.readLock.lock
+    reader.lock
     try {
       return segments.asScala.map(_.compressRatio).toSeq match {
         case r => if (r.size == 0) 0 else (r.sum / r.size)
       }
     } finally {
-      segmentsLock.readLock.unlock
+      reader.unlock
     }
   }
 
   def capacityInBytes: Long = {
-    segmentsLock.readLock.lock
+    reader.lock
     try {
       return segments.asScala.map(segment => segment.totalSizeInBytes.toLong).sum + index.sizeInBytes
     } finally {
-      segmentsLock.readLock.unlock
+      reader.unlock
     }
   }
 
   def totalSizeInBytes: Long = {
-    segmentsLock.readLock.lock
+    reader.lock
     try {
       return segmentIndex.asScala.map(s => segments.get(s).totalSizeInBytes.toLong).sum + index.sizeInBytes
     } finally {
-      segmentsLock.readLock.unlock
+      reader.unlock
     }
   }
 
   def load: Double = totalSizeInBytes.toDouble / maxSizeInBytes
 
   def contains(key: ByteBuffer): Boolean = {
-    indexReader.lock
+    reader.lock
     try {
       index.contains(key)
     } finally {
-      indexReader.unlock
+      reader.unlock
     }
   }
 
   final def iterator: Iterator[(ByteBuffer, ByteBuffer)] = iterator(b => b)
 
   def iterator[X](mapper: (ByteBuffer) => X): Iterator[(ByteBuffer, X)] = {
-    indexReader.lock
+    reader.lock
     try {
       val it = index.iterator
       new Iterator[(ByteBuffer, X)] {
@@ -156,43 +158,31 @@ class ConcurrentLogHashMap(
         }
       }
     } finally {
-      indexReader.unlock
+      reader.unlock
     }
   }
 
   def put(key: ByteBuffer, value: ByteBuffer): Unit = {
-
-    indexReader.lock
+    reader.lock
     try {
       val existingIndexValue = index.get(key)
-
       if (existingIndexValue != null) {
-        segmentsLock.readLock.lock
-        try {
-          if (existingIndexValue._2 == currentSegment) {
-            segments.get(currentSegment).put(existingIndexValue._3, value)
-            return
-          }
-        } finally {
-          segmentsLock.readLock.unlock
+        if (existingIndexValue._2 == currentSegment) {
+          segments.get(currentSegment).put(existingIndexValue._3, value)
+          return
         }
       }
     } finally {
-      indexReader.unlock
+      reader.unlock
     }
 
-    indexWriter.lock
+    writer.lock
     try {
       val existingIndexValue = index.get(key)
       if (existingIndexValue != null) {
-        segmentsLock.readLock.lock
-        try {
-          if (existingIndexValue._2 == currentSegment) {
-            segments.get(currentSegment).put(existingIndexValue._3, value)
-            return
-          }
-        } finally {
-          segmentsLock.readLock.unlock
+        if (existingIndexValue._2 == currentSegment) {
+          segments.get(currentSegment).put(existingIndexValue._3, value)
+          return
         }
       }
       val newIndexValue = allocBlock(if (value == null) 0 else value.remaining)
@@ -203,9 +193,8 @@ class ConcurrentLogHashMap(
         dealloc(existingIndexValue)
       }
     } finally {
-      indexWriter.unlock
+      writer.unlock
     }
-
   }
 
   final def get(key: ByteBuffer): ByteBuffer = get(key, (b: ByteBuffer) => b)
@@ -213,7 +202,7 @@ class ConcurrentLogHashMap(
   def get[X](key: ByteBuffer, mapper: (ByteBuffer => X)): X = {
     def inTransit(i: COORD) = i._1
 
-    indexReader.lock
+    reader.lock
     try {
       index.get(key) match {
         case null => null.asInstanceOf[X]
@@ -223,8 +212,8 @@ class ConcurrentLogHashMap(
           } else {
             var oldIndexValue: COORD = null
             var newIndexValue: COORD = null
-            indexReader.unlock
-            indexWriter.lock
+            reader.unlock
+            writer.lock
             try {
               oldIndexValue = index.get(key)
               if (inTransit(oldIndexValue)) {
@@ -239,8 +228,8 @@ class ConcurrentLogHashMap(
                 throw e
               }
             } finally {
-              indexReader.lock
-              indexWriter.unlock
+              reader.lock
+              writer.unlock
             }
 
             //copy old block to the newly allocated block while unlocked (the new one is not visible in the index yet)
@@ -248,13 +237,13 @@ class ConcurrentLogHashMap(
             val dstSegment = segments.get(newIndexValue._2)
             srcSegment.get[Unit](oldIndexValue._3, (b) => dstSegment.setUnsafe(newIndexValue._3, b))
 
-            indexReader.unlock
-            indexWriter.lock
+            reader.unlock
+            writer.lock
             try {
               index.put(key, newIndexValue)
             } finally {
-              indexReader.lock
-              indexWriter.unlock
+              reader.lock
+              writer.unlock
             }
 
             //after moving the index pointer, remove the old block
@@ -265,33 +254,7 @@ class ConcurrentLogHashMap(
         }
       }
     } finally {
-      indexReader.unlock
-    }
-  }
-
-  def compact: Unit = {
-    segmentsLock.readLock.lock
-    try {
-      for (s <- 0 to (segments.size - 1)) segments.get(s).compact(0)
-    } finally {
-      segmentsLock.readLock.unlock
-    }
-  }
-
-  def applyCompression(fraction: Double): Unit = {
-    val sizeThreshold = (maxSizeInBytes * (1.0 - fraction)).toInt
-
-    segmentsLock.readLock.lock
-    try {
-      var cumulativeSize = 0
-      segmentIndex.asScala.map(segments.get(_)).foreach(segment => {
-        cumulativeSize += segment.usedBytes
-        if (cumulativeSize > sizeThreshold) {
-          segment.compress
-        }
-      })
-    } finally {
-      segmentsLock.readLock.unlock
+      reader.unlock
     }
   }
 
@@ -314,7 +277,7 @@ class ConcurrentLogHashMap(
    * @return
    */
   private def allocBlock(valueSize: Int): COORD = {
-    segmentsLock.readLock.lock
+    reader.lock
     try {
       val segment = segments.get(currentSegment)
       if (segment.compactFactor >= 3.0) {
@@ -325,11 +288,11 @@ class ConcurrentLogHashMap(
         return (false, currentSegment, newBlock)
       }
     } finally {
-      segmentsLock.readLock.unlock
+      reader.unlock
     }
 
     //could not allocate block in the current segment, need to allocate new segment
-    segmentsLock.writeLock.lock
+    writer.lock
     try {
       //double check if we still can't crete in current segment after acquiring write lock
       val newBlock = segments.get(currentSegment).alloc(valueSize)
@@ -365,7 +328,7 @@ class ConcurrentLogHashMap(
         case newBlock => return (false, currentSegment, newBlock)
       }
     } finally {
-      segmentsLock.writeLock.unlock
+      writer.unlock
     }
   }
 
@@ -378,7 +341,7 @@ class ConcurrentLogHashMap(
       if (segments.size <= 1) {
         throw new OutOfMemoryError(
           s"LogHashMap could not ensure ${numBytesToRecycle / 1024 / 1024} Mb will be available. " +
-          s"Current map size ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${index.sizeInBytes / 2014 / 2014} Mb")
+            s"Current map size ${totalSizeInBytes / 1024 / 1024} Mb (of that index ${index.sizeInBytes / 2014 / 2014} Mb")
       }
       val s = (segments.size - 1).toShort
       segmentIndex.remove(s.asInstanceOf[Object])
@@ -389,11 +352,11 @@ class ConcurrentLogHashMap(
 
     segmentIndex.asScala.map(s => (s, segments.get(s))).foreach { case (s, segment) => {
       if (bytesToRemove > 0 && s != currentSegment) {
-          bytesToRemove -= segment.totalSizeInBytes
-          segmentsRemoved += s
-          segmentIndex.remove(s.asInstanceOf[Object])
-          segments.get(s).recycle
-        }
+        bytesToRemove -= segment.totalSizeInBytes
+        segmentsRemoved += s
+        segmentIndex.remove(s.asInstanceOf[Object])
+        segments.get(s).recycle
+      }
     }
     }
     if (segmentsRemoved.size > 0) {
@@ -407,18 +370,36 @@ class ConcurrentLogHashMap(
   }
 
   def printStats: Unit = {
-    segmentsLock.readLock.lock
+    reader.lock
     try {
       println(s"LOGHASHMAP: index.size = ${index.size} seg.entires = ${size} " +
         s"total.capacity = ${capacityInBytes / 1024 / 1024} Mb " +
-        s"current.memory = ${size}" +
+        s"current.memory = ${totalSizeInBytes / 1024 / 1024} Mb " +
         s"(of that index: ${index.sizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})" +
         s", compression = ${compressRatio} ")
       segmentIndex.asScala.reverse.foreach(s => segments.get(s).printStats(s))
       segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment))
         .foreach(s => s.printStats(-1))
     } finally {
-      segmentsLock.readLock.unlock
+      reader.unlock
     }
   }
+
+  def applyCompression(fraction: Double): Unit = {
+    val sizeThreshold = (maxSizeInBytes * (1.0 - fraction)).toInt
+
+    reader.lock
+    try {
+      var cumulativeSize = 0
+      segmentIndex.asScala.map(segments.get(_)).foreach(segment => {
+        cumulativeSize += segment.usedBytes
+        if (cumulativeSize > sizeThreshold) {
+          segment.compress
+        }
+      })
+    } finally {
+      reader.unlock
+    }
+  }
+
 }

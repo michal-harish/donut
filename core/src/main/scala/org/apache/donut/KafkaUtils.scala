@@ -70,7 +70,7 @@ case class KafkaUtils(val config: Properties) {
   }
 
   def findLeader(topic: String, partition: Int): Broker = {
-    while(true) {
+    while (true) {
       try {
         val partitionMeta = getPartitionMeta(topic, partition)
         if (partitionMeta == null) {
@@ -123,29 +123,33 @@ case class KafkaUtils(val config: Properties) {
   }
 
 
-  protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long): Unit = {
+  protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long, failOnError: Boolean): Unit = {
     var numErrors = 0
-    while(true) try {
-      getCoordinator(groupId) match {
-        case None => throw new IllegalStateException
-        case Some(coordinator) => {
-          val consumer = new SimpleConsumer(coordinator.host, coordinator.port, 100000, 64 * 1024, "consumerOffsetCommitter")
-          try {
-            val req = new OffsetCommitRequest(groupId, Map(topicAndPartition -> OffsetAndMetadata(offset)))
-            val res = consumer.commitOffsets(req)
-            if (res.hasError) {
-              throw new IOException(s"Error committing offset for consumer group `${groupId}` " + res.describe(true))
+    while (true) {
+      try {
+        getCoordinator(groupId) match {
+          case None => throw new IllegalStateException
+          case Some(coordinator) => {
+            val consumer = new SimpleConsumer(coordinator.host, coordinator.port, 100000, 64 * 1024, "consumerOffsetCommitter")
+            try {
+              val req = new OffsetCommitRequest(groupId, Map(topicAndPartition -> OffsetAndMetadata(offset)))
+              val res = consumer.commitOffsets(req)
+              if (res.hasError) {
+                throw new IOException(res.describe(true))
+              }
+              return
+            } finally {
+              consumer.close
             }
-            return
-          } finally {
-            consumer.close
           }
         }
-      }
-    } catch {
-      case e: IOException => {
-        numErrors += 1
-        if (numErrors > 3) throw e else Thread.sleep(5000)
+      } catch {
+        case e: IOException => {
+          numErrors += 1
+          if (failOnError && numErrors > 3) throw e
+          log.warn(s"Error committing offset for consumer group `${groupId}`", e)
+          if (failOnError) Thread.sleep(10000) else return
+        }
       }
     }
   }
@@ -195,7 +199,7 @@ case class KafkaUtils(val config: Properties) {
 
     def getOffset: Long = getGroupOffset(groupId, topicAndPartition)
 
-    def commitOffset(offset: Long): Unit = commitGroupOffset(groupId, topicAndPartition, offset)
+    def commitOffset(offset: Long, failOnError: Boolean): Unit = commitGroupOffset(groupId, topicAndPartition, offset, failOnError)
 
   }
 

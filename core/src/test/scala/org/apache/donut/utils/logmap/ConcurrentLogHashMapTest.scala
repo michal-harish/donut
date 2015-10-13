@@ -81,7 +81,6 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
 
     getAll()
     getAll()
-    m.compact
     println(s"COMPACT > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
     m.totalSizeInBytes should be <= (m.maxSizeInBytes)
     m.compressRatio should be(1.0)
