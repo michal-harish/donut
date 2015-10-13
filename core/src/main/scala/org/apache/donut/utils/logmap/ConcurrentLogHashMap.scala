@@ -54,24 +54,13 @@ class ConcurrentLogHashMap(
                             val compressMinBlockSize: Int,
                             val indexLoadFactor: Double = 0.7) {
 
-  // FIXME - the following inconsitency was observed with real data stream but escapes the multi-threaded unit test
-  //  java.lang.ArrayIndexOutOfBoundsException: 3359648 + 4 > 4
-  //  at org.apache.donut.utils.logmap.GrowableByteBuffer.getInt(GrowableByteBuffer.scala:60)
-  //  at org.apache.donut.utils.logmap.IntIndex.get(IntIndex.scala:39)
-  //  at org.apache.donut.utils.logmap.SegmentDirectMemoryLZ4.sizeOf(SegmentDirectMemoryLZ4.scala:174)
-  //  at org.apache.donut.utils.logmap.SegmentDirectMemoryLZ4.remove(SegmentDirectMemoryLZ4.scala:199)
-  //  at org.apache.donut.utils.logmap.ConcurrentLogHashMap.dealloc(ConcurrentLogHashMap.scala:271)
-  //  at org.apache.donut.utils.logmap.ConcurrentLogHashMap.put(ConcurrentLogHashMap.scala:193)
-  //  at org.apache.donut.memstore.MemStoreLogMap.put(MemStoreLogMap.scala:34)
-  //  at net.imagini.dxp.graphstream.connectedbsp.ConnectedBSPProcessor.bootState(ConnectedBSPProcessor.scala:56)
-  //  at net.imagini.dxp.graphstream.connectedbsp.ConnectedBSPProcessingUnit$$anon$1.handleMessage(ConnectedBSPProcessingUnit.scala:52)
-
   //TODO design the compression scheme and trigger followed by a merge of segments with joint load factor =< 1.0
-  // - At the moment, if a block is being moved (by get-touch) from a compressed group it will also remain in the
+  // OPTION A: If a block is being moved (by get-touch) from a compressed group it will also remain in the
   // compressed group - what should really happen is that since we're uncompressing the block it would make sense
   // to first re-store all blocks it contains within the current segment not just the one being requested.
-  // - a custom class of ByteBuffer for lz4 buffers could remember which block is it pointing to but if we'll implement
-  // always decompressing the entire block into the current segmet that doesn't need to happen
+  // OPTION B:  a custom class of ByteBuffer for lz4 buffers could remember which block is it pointing
+  // OPTION C: compression managed by the map class, segment not aware what is storing - this way we can do some
+  // sophisticated compress-and-merge compactions truly freeing segments for recycling
 
   //TODO def iterator[X] returns unsafe iterator as it unlocks the reader right after the instantiation so we need
   // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate in the index
@@ -194,23 +183,27 @@ class ConcurrentLogHashMap(
       val existingIndexValue = index.get(key)
       if (existingIndexValue != null) {
         if (existingIndexValue._2 == currentSegment) {
-          segments.get(currentSegment).put(existingIndexValue._3, value)
-          return
+          if (segments.get(currentSegment).put(existingIndexValue._3, value) >= 0) {
+            //optimized case where we either overwrite literally the same memory position
+            //or second best case of compaction-less append..
+            //any other case needs to allocate a new block by means of potential compaction below
+            return
+          }
         }
       }
       val newIndexValue = allocBlock(if (value == null) 0 else value.remaining)
       segments.get(newIndexValue._2).put(newIndexValue._3, value)
-
+      //after the allocBlock the index may have changed by means of recycling segments so re-check existing
+      val checkedExistingValue = if (existingIndexValue == null) null else index.get(key)
       index.put(key, newIndexValue)
-      if (existingIndexValue != null) {
-        dealloc(existingIndexValue)
+      if (checkedExistingValue != null) {
+        dealloc(checkedExistingValue)
       }
     } finally {
       writer.unlock
     }
   }
 
-  final def get(key: ByteBuffer): ByteBuffer = get(key, (b: ByteBuffer) => b)
 
   def get[X](key: ByteBuffer, mapper: (ByteBuffer => X)): X = {
     def inTransit(i: COORD) = i._1

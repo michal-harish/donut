@@ -94,7 +94,8 @@ trait Segment {
    *
    * @param block if -1 is given it behaves as append
    * @param value
-   * @return the position, which is either same as the block given as argument or new block position if -1 was given
+   * @return the position, which is either same as the block given as argument or new block position if -1 was given,
+   *         or -1 if the operation failed
    */
   def put(block: Int, value: ByteBuffer): Int
 
