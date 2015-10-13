@@ -70,106 +70,106 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     map.printStats
   }
 
-  //  it should "behave consistently and perform (multi-threaded) " in {
-  //    val m = new ConcurrentLogHashMap(maxSizeInMb = 64, segmentSizeMb = 16, compressMinBlockSize = 16 * 1024)
-  //    val words = List("Hello", "World", "Foo", "Bar")
-  //    val numWords = 100
-  //    val stepFactor = 9997
-  //    val counter = new AtomicInteger(0)
-  //    val time = new AtomicLong(0)
-  //    val numThreads = 4
-  //    val e = Executors.newFixedThreadPool(numThreads)
-  //    (1 to numThreads).foreach(t => {
-  //      e.submit(new Runnable() {
-  //        val digest = MessageDigest.getInstance("MD5")
-  //
-  //        override def run(): Unit = {
-  //          try {
-  //            val input = ((t * stepFactor) to ((t + 1) * stepFactor - 1)).map(i => (
-  //              genKey(i, digest),
-  //              ByteBuffer.wrap((0 to numWords).map(x => words(i % words.size)).mkString(",").getBytes))
-  //            ).toMap
-  //            counter.addAndGet(input.size)
-  //            val ts = System.currentTimeMillis
-  //            input.foreach { case (key, value) => {
-  //              m.put(key, value)
-  //            }
-  //            }
-  //            time.addAndGet(System.currentTimeMillis - ts)
-  //          } catch {
-  //            case e: Throwable => {
-  //              e.printStackTrace
-  //              System.exit(1)
-  //            }
-  //          }
-  //        }
-  //      })
-  //    })
-  //    e.shutdown
-  //    if (!e.awaitTermination(10, TimeUnit.SECONDS)) {
-  //      throw new TimeoutException(s"${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
-  //    }
-  //
-  //    println(s"input count ${counter.get}, ${time.get} ms")
-  //    println(s"PUT ALL > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
-  //    m.size should be(counter.get)
-  //    m.index.size should be (m.size)
-  //    m.printStats
-  //    m.compressRatio should be(1.0)
-  //
-  //    getAll()
-  //    getAll()
-  //    println(s"COMPACT > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
-  //    m.totalSizeInBytes should be <= (m.maxSizeInBytes)
-  //    m.compressRatio should be(1.0)
-  //    getAll()
-  //
-  ////    m.applyCompression(0.75)
-  ////    println(s"COMPRESS > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
-  ////    m.compressRatio should be < (0.7)
-  ////    getAll()
-  ////
-  ////    putMoreThanMaxAllowed
-  ////    println(s"EXTRA PUT ${counter.get}")
-  ////    println(s"PUT MORE> ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
-  ////    m.totalSizeInBytes should be <= (m.maxSizeInBytes)
-  ////    m.size should be < (counter.get)
-  ////    m.size should be > 70000
-  ////
-  ////    m.applyCompression(1.0)
-  ////
-  ////    def putMoreThanMaxAllowed = {
-  ////      val digest = MessageDigest.getInstance("MD5")
-  ////      val input = (((numThreads + 1) * stepFactor) to ((numThreads + 10) * stepFactor - 1)).map(i => (
-  ////        genKey(i, digest),
-  ////        ByteBuffer.wrap((0 to numWords).map(x => words(i % words.size)).mkString(",").getBytes))
-  ////      ).toMap
-  ////      counter.addAndGet(input.size)
-  ////      val ts = System.currentTimeMillis
-  ////      input.foreach { case (key, value) => {
-  ////        m.put(key, value)
-  ////      }
-  ////      }
-  ////      time.addAndGet(System.currentTimeMillis - ts)
-  ////    }
-  //
-  //    def genKey(k: Int, digest: MessageDigest): ByteBuffer = {
-  //      val d = digest.digest(k.toString.getBytes)
-  //      ByteBuffer.wrap(d)
-  //    }
-  //
-  //    def getAll() = {
-  //      val digest = MessageDigest.getInstance("MD5")
-  //      for (t <- 1 to numThreads) {
-  //        for (i <- (t * stepFactor) to ((t + 1) * stepFactor - 1)) {
-  //          val key = genKey(i, digest)
-  //          val expectedValue = (0 to numWords).map(x => words(i % words.size)).mkString(",")
-  //          val actualValue = m.get(key, g)
-  //          actualValue should be(expectedValue)
-  //        }
-  //      }
-  //      println(s"GET ALL > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
-  //    }
-  //  }
+  it should "behave consistently and perform (multi-threaded) " in {
+    val m = new ConcurrentLogHashMap(maxSizeInMb = 64, segmentSizeMb = 16, compressMinBlockSize = 16 * 1024)
+    val words = List("Hello", "World", "Foo", "Bar")
+    val numWords = 100
+    val stepFactor = 9997
+    val counter = new AtomicInteger(0)
+    val time = new AtomicLong(0)
+    val numThreads = 4
+    val e = Executors.newFixedThreadPool(numThreads)
+    (1 to numThreads).foreach(t => {
+      e.submit(new Runnable() {
+        val digest = MessageDigest.getInstance("MD5")
+
+        override def run(): Unit = {
+          try {
+            val input = ((t * stepFactor) to ((t + 1) * stepFactor - 1)).map(i => (
+              genKey(i, digest),
+              ByteBuffer.wrap((0 to numWords).map(x => words(i % words.size)).mkString(",").getBytes))
+            ).toMap
+            counter.addAndGet(input.size)
+            val ts = System.currentTimeMillis
+            input.foreach { case (key, value) => {
+              m.put(key, value)
+            }
+            }
+            time.addAndGet(System.currentTimeMillis - ts)
+          } catch {
+            case e: Throwable => {
+              e.printStackTrace
+              System.exit(1)
+            }
+          }
+        }
+      })
+    })
+    e.shutdown
+    if (!e.awaitTermination(10, TimeUnit.SECONDS)) {
+      throw new TimeoutException(s"${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
+    }
+
+    println(s"input count ${counter.get}, ${time.get} ms")
+    println(s"PUT ALL > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
+    m.size should be(counter.get)
+    m.index.size should be(m.size)
+    m.printStats
+    m.compressRatio should be(1.0)
+
+    getAll()
+    getAll()
+    println(s"COMPACT > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
+    m.totalSizeInBytes should be <= (m.maxSizeInBytes)
+    m.compressRatio should be(1.0)
+    getAll()
+
+    //    m.applyCompression(0.75)
+    //    println(s"COMPRESS > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
+    //    m.compressRatio should be < (0.7)
+    //    getAll()
+    //
+    //    putMoreThanMaxAllowed
+    //    println(s"EXTRA PUT ${counter.get}")
+    //    println(s"PUT MORE> ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
+    //    m.totalSizeInBytes should be <= (m.maxSizeInBytes)
+    //    m.size should be < (counter.get)
+    //    m.size should be > 70000
+    //
+    //    m.applyCompression(1.0)
+    //
+    //    def putMoreThanMaxAllowed = {
+    //      val digest = MessageDigest.getInstance("MD5")
+    //      val input = (((numThreads + 1) * stepFactor) to ((numThreads + 10) * stepFactor - 1)).map(i => (
+    //        genKey(i, digest),
+    //        ByteBuffer.wrap((0 to numWords).map(x => words(i % words.size)).mkString(",").getBytes))
+    //      ).toMap
+    //      counter.addAndGet(input.size)
+    //      val ts = System.currentTimeMillis
+    //      input.foreach { case (key, value) => {
+    //        m.put(key, value)
+    //      }
+    //      }
+    //      time.addAndGet(System.currentTimeMillis - ts)
+    //    }
+
+    def genKey(k: Int, digest: MessageDigest): ByteBuffer = {
+      val d = digest.digest(k.toString.getBytes)
+      ByteBuffer.wrap(d)
+    }
+
+    def getAll() = {
+      val digest = MessageDigest.getInstance("MD5")
+      for (t <- 1 to numThreads) {
+        for (i <- (t * stepFactor) to ((t + 1) * stepFactor - 1)) {
+          val key = genKey(i, digest)
+          val expectedValue = (0 to numWords).map(x => words(i % words.size)).mkString(",")
+          val actualValue = m.get(key, g)
+          actualValue should be(expectedValue)
+        }
+      }
+      println(s"GET ALL > ${m.numSegments} SEGMENTS: count = ${m.size}, compression = ${m.compressRatio}, load = ${m.load}, capacity = ${m.totalSizeInBytes / 1024} Kb")
+    }
+  }
 
 }
