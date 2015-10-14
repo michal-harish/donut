@@ -20,6 +20,8 @@ package org.apache.donut.utils.logmap
 
 import java.nio.ByteBuffer
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import org.slf4j.LoggerFactory
+
 import scala.collection.JavaConverters._
 
 /**
@@ -71,6 +73,8 @@ class ConcurrentLogHashMap(
 
   //TODO at the moment it is fixed to ByteBuffer keys and values but it should be possible to generalise into
   // ConcurrentLogHashMap[K,V] with implicit serdes such that the zero-copy capability is preserved
+
+  private val log = LoggerFactory.getLogger(classOf[ConcurrentLogHashMap])
 
   val maxSizeInBytes = maxSizeInMb * 1024 * 1024
 
@@ -367,9 +371,16 @@ class ConcurrentLogHashMap(
     }
     }
     if (segmentsRemoved.size > 0) {
-      index.update((pointer: COORD) => {
+      index.update((key: ByteBuffer, pointer: COORD) => {
         pointer._2 match {
-          case removedSegment if (segmentsRemoved.contains(removedSegment)) => null
+          case removedSegment if (segmentsRemoved.contains(removedSegment)) => {
+            try {
+              onEvictEntry(key)
+            } catch {
+              case e:Throwable => log.warn("onEvictEntry failed", e)
+            }
+            null
+          }
           case retainedSegment => pointer
         }
       })
@@ -393,6 +404,14 @@ class ConcurrentLogHashMap(
       reader.unlock
     }
   }
+
+  def onEvictEntry(key: ByteBuffer) = {
+    /**
+     * To be overriden for applications that wish to get notified about any key evicted from the tail during recycling
+     * of segments
+     */
+  }
+
 
 //  def applyCompression(fraction: Double): Unit = {
 //    val sizeThreshold = (maxSizeInBytes * (1.0 - fraction)).toInt

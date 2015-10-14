@@ -91,7 +91,7 @@ class VarHashTable(val initialCapacityKb: Int, private val loadFactor: Double = 
    * @param f function to apply to all values in all underlying hashtables - any values that are mapped to null
    *          are marked as removed
    */
-  def update(f: (VAL) => VAL): Unit = {
+  def update(f: (ByteBuffer, VAL) => VAL): Unit = {
     cube.values.asScala.foreach(hashTable => hashTable.update(f))
   }
 
@@ -170,13 +170,16 @@ class VarHashTable(val initialCapacityKb: Int, private val loadFactor: Double = 
 
     def put(key: ByteBuffer, value: VAL): Unit = put(key, value, true)
 
-    def update(f: (VAL) => VAL): Unit = {
+    def update(f: (ByteBuffer, VAL) => VAL): Unit = {
       var hashPos = 0
+      val keyBuffer = data.duplicate
       while (hashPos + rowLen <= data.capacity) {
         val hash = data.getInt(hashPos)
         if (hash != 0 && hash != Int.MinValue) {
+          keyBuffer.limit(hashPos + keyLen)
+          keyBuffer.position(hashPos)
           val prevValue = getValue(hashPos)
-          val newValue = f(prevValue)
+          val newValue = f(keyBuffer, prevValue)
           newValue match {
             case null => if (prevValue != null) {
               data.putInt(hashPos, Int.MinValue)

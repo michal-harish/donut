@@ -20,6 +20,7 @@ package org.apache.donut.memstore
 
 import java.nio.ByteBuffer
 
+import org.apache.donut.utils.logmap.ConcurrentLogHashMap
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
@@ -31,7 +32,7 @@ class MemStoreTest extends FlatSpec with Matchers {
 
   behavior of "MemStoreLog"
   it should "behave as expected" in {
-    val st = new MemStoreLogMap(maxSizeInMb = 1024, segmentSizeMb = 1)
+    val st = new MemStoreLogMap(new ConcurrentLogHashMap(maxSizeInMb = 1024, segmentSizeMb = 1, 65535))
     test(st)
     st.size should be(5)
   }

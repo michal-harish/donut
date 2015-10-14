@@ -21,8 +21,9 @@ package org.apache.donut
 import java.io.IOException
 import java.lang.reflect.Constructor
 import java.util.Properties
-import java.util.concurrent.{TimeUnit, Executors}
-import org.apache.yarn1.{YarnContainerRequest, YarnMaster, YarnClient}
+import java.util.concurrent.{Executors, TimeUnit}
+
+import org.apache.yarn1.{YarnClient, YarnContainerRequest, YarnMaster}
 import org.slf4j.LoggerFactory
 
 import scala.reflect.ClassTag
@@ -65,11 +66,12 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
    *
    * Each task thread may still contain multiple fetcher threads depending on the partitioning scheme and
    * cogroup and max.tasks configuration.
-   * 
+   *
    * @param debugOnePartition if 'true' is passed, only one thread for logical partition 0 will be launched
    */
-  final def runLocally(debugOnePartition: Int = - 1): Unit = {
+  final def runLocally(debugOnePartition: Int = -1): Unit = {
     try {
+      val ui = new WebUI("localmaster")
       numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
       val taskConstructor: Constructor[T] = taskClass.getConstructor(
         classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
@@ -84,25 +86,29 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
         t
       })
 
-      executor.submit(new Runnable() {
-        val in = scala.io.Source.stdin.getLines
-        override def run(): Unit = {
-          print("\n>")
-          while(in.hasNext) {
-            val cmd = in.next
-            tasks.foreach(_.executeCommand(cmd))
+      ui.start
+      try {
+        executor.submit(new Runnable() {
+          val in = scala.io.Source.stdin.getLines
+
+          override def run(): Unit = {
             print("\n>")
+            while (in.hasNext) {
+              val cmd = in.next
+              tasks.foreach(_.executeCommand(cmd))
+              print("\n>")
+            }
           }
-        }
-      })
+        })
 
-      executor.shutdown
-
-      while (!executor.isTerminated) {
-        if (executor.awaitTermination(updateFrequencyMs, TimeUnit.MILLISECONDS)) {
-          System.exit(0)
+        executor.shutdown
+        println("Application Master: " + ui.url)
+        while (!executor.isTerminated) {
+          if (executor.awaitTermination(updateFrequencyMs, TimeUnit.MILLISECONDS)) return
+          println(s"Progress ${getProgress * 100.0}%")
         }
-        println(s"Progress ${getProgress * 100.0}%")
+      } finally {
+        ui.stop
       }
     } catch {
       case e: Throwable => {
@@ -110,6 +116,7 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
         System.exit(1)
       }
     }
+    System.exit(0)
   }
 
   /**
@@ -119,7 +126,7 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
     numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
     val taskHeapMemMb = taskOverheadMemMb * 4 / 5
     val taskDirectMemMb = totalMainMemoryMb / numLogicalPartitions + (taskOverheadMemMb - taskHeapMemMb)
-      requestContainerGroup((0 to numLogicalPartitions - 1).map(lp => {
+    requestContainerGroup((0 to numLogicalPartitions - 1).map(lp => {
       val args: Array[String] = Array(taskClass.getName, lp.toString, numLogicalPartitions.toString) ++ topics
       new YarnContainerRequest(DonutYarnContainer.getClass, args, taskPriority, taskDirectMemMb, taskHeapMemMb, 1)
     }).toArray)
