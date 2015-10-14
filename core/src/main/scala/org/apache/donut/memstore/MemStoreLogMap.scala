@@ -7,9 +7,9 @@ import org.apache.donut.utils.logmap.ConcurrentLogHashMap
 /**
  * Created by mharis on 05/10/15.
  */
-class MemStoreLogMap(val maxSizeInMb: Int, val segmentSizeMb: Int, val compressMinBlockSize:Int) extends MemStore {
+class MemStoreLogMap(val maxSizeInMb: Int, val segmentSizeMb: Int) extends MemStore {
 
-  val map = new ConcurrentLogHashMap(maxSizeInMb, segmentSizeMb, compressMinBlockSize, indexLoadFactor = 0.87)
+  val map = new ConcurrentLogHashMap(maxSizeInMb, segmentSizeMb, compressMinBlockSize = 131070, indexLoadFactor = 0.87)
 
   override def size: Long = map.size
 

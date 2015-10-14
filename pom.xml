@@ -12,6 +12,7 @@
     <modules>
         <module>core</module>
         <module>yarn1</module>
+        <module>web-ui</module>
     </modules>
 
     <properties>
@@ -24,6 +25,12 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- embedded httpd server -->
+            <dependency>
+                <groupId>com.nanohttpd</groupId>
+                <artifactId>nanohttpd</artifactId>
+                <version>2.1.1</version>
+            </dependency>
             <!-- logging -->
             <dependency>
                 <groupId>org.slf4j</groupId>

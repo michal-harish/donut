@@ -37,11 +37,10 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
     new String(a)
   }
 
-
   behavior of "ConcurrentLogHashMap"
 
   it should "detect recycled block references (single-threaded) " in {
-    val map = new ConcurrentLogHashMap(maxSizeInMb = 5, segmentSizeMb = 1, compressMinBlockSize = 16 * 1024)
+    val map = new ConcurrentLogHashMap(maxSizeInMb = 4, segmentSizeMb = 1, compressMinBlockSize = 16 * 1024)
     val words = List("Hello", "World", "Cambodia", "Japan", "Lebanon")
     def genKey(m: Long): ByteBuffer = {
       val a = new Array[Byte](12)
@@ -50,23 +49,23 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
       ByteBuffer.wrap(a)
     }
     def genVal(k: Long): ByteBuffer = {
-      val shuffledWords = for (x <- 0 to 10) yield words(((k + x) % words.length).toInt)
+      val shuffledWords = for (x <- 0 to 100) yield words(((k + x) % words.length).toInt)
       ByteBuffer.wrap(shuffledWords.mkString(",").getBytes)
     }
     def genSegment(kStart: Long): Unit = {
       map.put(genKey(kStart), genVal(kStart))
-      val numSegments = map.numSegments
+      val markSegment = map.currentSegment
       var k = kStart
-      while (map.numSegments == numSegments) {
+      while (map.currentSegment == markSegment) {
         k += 1
         map.put(genKey(k), genVal(k))
       }
     }
-    genSegment(1000000)
+    genSegment(10000000)
     map.printStats(true)
-    genSegment(2000000)
+    genSegment(20000000)
     map.printStats(true)
-    genSegment(1000000) //pushing out existing value from the last segment
+    genSegment(10000000) //pushing out existing value from the last segment
     map.printStats(true)
   }
 

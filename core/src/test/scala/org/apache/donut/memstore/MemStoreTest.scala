@@ -31,7 +31,7 @@ class MemStoreTest extends FlatSpec with Matchers {
 
   behavior of "MemStoreLog"
   it should "behave as expected" in {
-    val st = new MemStoreLogMap(maxSizeInMb = 1024, segmentSizeMb = 1, compressMinBlockSize = 65535)
+    val st = new MemStoreLogMap(maxSizeInMb = 1024, segmentSizeMb = 1)
     test(st)
     st.size should be(5)
   }

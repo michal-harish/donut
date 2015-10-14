@@ -29,9 +29,13 @@ import scala.collection.JavaConverters._
  * Not Thread-Safe
  *
  */
-class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
+class VarHashTable(val initialCapacityKb: Int, private val loadFactor: Double = 0.7) {
 
   type VAL = (Boolean, Short, Int)
+
+  private val INITIAL_CAPACITY_BYTES = initialCapacityKb * 1024
+
+  private val CAPACITY_GROWTH_FACTOR = 1.4
 
   val cube = new util.HashMap[Int, GrowableHashTable]
 
@@ -39,18 +43,54 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
 
   def sizeInBytes: Long = cube.values.asScala.map(_.sizeInBytes).sum
 
-  def load: Double = cube.values.asScala.map(_.load).sum / cube.size
-
   def put(key: ByteBuffer, value: VAL) = hashTable(key, create = true).put(key, value)
 
-  def get(key: ByteBuffer): VAL = hashTable(key).get(key)
+  def get(key: ByteBuffer): VAL = hashTable(key) match {
+    case null => null.asInstanceOf[VAL]
+    case hashTable => hashTable.get(key)
+  }
 
-  def contains(key: ByteBuffer): Boolean = hashTable(key).find(key) != -1
+  def contains(key: ByteBuffer): Boolean = hashTable(key) match {
+    case null => false
+    case hashTable => hashTable.find(key) != -1
+  }
 
-  def remove(key: ByteBuffer): Unit = hashTable(key).remove(key)
+  def remove(key: ByteBuffer): Unit = hashTable(key) match {
+    case null => {}
+    case hashTable => hashTable.remove(key)
+  }
 
-  def flag(key: ByteBuffer, flagValue: Boolean) = hashTable(key).flag(key, flagValue)
+  /**
+   * actual load factor
+   * @return value between 0 and 1.0 representing a fraction of allocated memory that is occupied by index entries
+   */
+  def load: Double = cube.values.asScala.map(_.load).sum / cube.size
 
+  /**
+   * bytesToGrow is used for pre-emptying memory allocation for precise implementation of memory limits
+   * @param key
+   * @return maximum number of bytes that might need to be allocated if the given key was used in a put operation
+   */
+  def bytesToGrow(key: ByteBuffer): Int = hashTable(key, create = true).bytesToGrow
+
+  /**
+   * flag or unflag the boolean element of the given entry VAL representing the transition status of the entry.
+   * This is used for flagging the transit status when moving blocks to which the key VAL points to withing
+   * a concurrent log hash map structure.
+   * @param key
+   * @param flagValue the boolean transit flag portion of the VAL 
+   */
+  def setTransitFlag(key: ByteBuffer, flagValue: Boolean) = hashTable(key) match {
+    case null => {}
+    case hashTable => hashTable.flag(key, flagValue)
+  }
+
+  /**
+   * update applies given function to all entries in the hashtable and replaces their value pointers with the result
+   * this is used for re-indexing operations or bulk removal etc.
+   * @param f function to apply to all values in all underlying hashtables - any values that are mapped to null
+   *          are marked as removed
+   */
   def update(f: (VAL) => VAL): Unit = {
     cube.values.asScala.foreach(hashTable => hashTable.update(f))
   }
@@ -76,8 +116,8 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
   private def hashTable(key: ByteBuffer, create: Boolean = false): GrowableHashTable = {
     val keyLen = key.remaining
     cube.get(keyLen) match {
-      case null => synchronized {
-        val hashTable = new GrowableHashTable(keyLen, initialCapacityKb, loadFactor)
+      case null => if (!create) null else synchronized {
+        val hashTable = new GrowableHashTable(keyLen)
         cube.put(keyLen, hashTable)
         hashTable
       }
@@ -85,15 +125,13 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
     }
   }
 
-  final class GrowableHashTable(val keyLen: Int, val initialCapacityKb: Int, val loadFactor: Double) {
+  final class GrowableHashTable(val keyLen: Int) {
 
-    def sizeInBytes: Long = data.capacity
+    def sizeInBytes: Long = if (data == null) 0 else data.capacity
 
     def size = loaded
 
     def load: Double = loaded.toDouble / numPositions
-
-    private val INITIAL_CAPACITY = initialCapacityKb * 1024
 
     private var maxCollisions = 0
 
@@ -104,8 +142,6 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
     private var numPositions = 0 // number of positions
 
     private var loaded = 0 //number of used positions
-
-    grow
 
     def get(key: ByteBuffer): VAL = {
       find(key) match {
@@ -169,7 +205,7 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
             hashPos += rowLen
           }
         }
-        false
+        return false
       }
 
       override def next(): (ByteBuffer, (Boolean, Short, Int)) = {
@@ -187,20 +223,22 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
       if (hashCode == 0 || hashCode == Int.MinValue) {
         throw new IllegalArgumentException(s"Invalid hashCode `${hashCode}`. hashCode cannot be 0 or ${Int.MinValue}")
       }
-      var hash = getHash(hashCode)
-      var numCollisions = 0
-      while (numCollisions <= maxCollisions) {
-        val hashPos = hash * rowLen
-        val inspectHashCode = data.getInt(hashPos)
-        if (inspectHashCode == 0) {
-          return -1
-        } else if (inspectHashCode == hashCode && keyEquals(hashPos, key)) {
-          return hashPos
+      if (data != null) {
+        var hash = getHash(hashCode)
+        var numCollisions = 0
+        while (numCollisions <= maxCollisions) {
+          val hashPos = hash * rowLen
+          val inspectHashCode = data.getInt(hashPos)
+          if (inspectHashCode == 0) {
+            return -1
+          } else if (inspectHashCode == hashCode && keyEquals(hashPos, key)) {
+            return hashPos
+          }
+          hash = resolveCollision(hash)
+          numCollisions += 1
         }
-        hash = resolveCollision(hash)
-        numCollisions += 1
       }
-      -1
+      return -1
     }
 
     private def getValue(hashPos: Int, fromData: ByteBuffer = data): VAL = {
@@ -214,6 +252,7 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
     }
 
     private def put(key: ByteBuffer, value: VAL, growable: Boolean): Boolean = {
+      if (data == null) grow
       val hashCode = key.getInt(key.position)
       if (hashCode == 0 || hashCode == Int.MinValue) {
         throw new IllegalArgumentException(s"Invalid hashCode `${hashCode}`. hashCode cannot be 0 or ${Int.MinValue}")
@@ -281,12 +320,22 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
       true
     }
 
+    private[logmap] def bytesToGrow: Int = {
+      if (data == null) {
+        INITIAL_CAPACITY_BYTES
+      } else if (load  > loadFactor * 0.99) {
+        (data.capacity * CAPACITY_GROWTH_FACTOR).toInt
+      } else {
+        0
+      }
+    }
+
     private def grow = {
       val oldData = data
-      var capacity = if (data == null) INITIAL_CAPACITY / 2 else oldData.capacity
+      var capacity = if (data == null) 0 else oldData.capacity
       var success = true
       do {
-        capacity = (capacity * 2.0).toInt / rowLen * rowLen
+        capacity = if (capacity == 0) INITIAL_CAPACITY_BYTES else ((capacity * CAPACITY_GROWTH_FACTOR).toInt / rowLen * rowLen)
         data = ByteBuffer.allocateDirect(capacity)
         numPositions = capacity / rowLen
         loaded = 0
@@ -305,7 +354,6 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
       } while (!success)
       true
     }
-
   }
 
 }

@@ -80,7 +80,7 @@ class ConcurrentLogHashMap(
 
   private[logmap] val index = new VarHashTable(initialCapacityKb = 64, indexLoadFactor)
 
-  @volatile private var currentSegment: Short = 0
+  @volatile private[logmap] var currentSegment: Short = 0
   private val segmentIndex = new java.util.ArrayList[Short]
   private val segments = new java.util.ArrayList[Segment]() {
     add(newSegmentInstance)
@@ -191,7 +191,7 @@ class ConcurrentLogHashMap(
           }
         }
       }
-      val newIndexValue = allocBlock(if (value == null) 0 else value.remaining)
+      val newIndexValue = allocBlock(index.bytesToGrow(key), if (value == null) 0 else value.remaining)
       segments.get(newIndexValue._2).put(newIndexValue._3, value)
       //after the allocBlock the index may have changed by means of recycling segments so re-check existing
       val checkedExistingValue = if (existingIndexValue == null) null else index.get(key)
@@ -225,11 +225,11 @@ class ConcurrentLogHashMap(
               if (inTransit(oldIndexValue)) {
                 return getBlock(oldIndexValue, mapper)
               }
-              index.flag(key, true)
-              newIndexValue = allocBlock(sizeOfBlock(oldIndexValue))
+              index.setTransitFlag(key, true)
+              newIndexValue = allocBlock(0, sizeOfBlock(oldIndexValue))
             } catch {
               case e: Throwable => {
-                if (oldIndexValue != null) index.flag(key, false)
+                if (oldIndexValue != null) index.setTransitFlag(key, false)
                 if (newIndexValue != null) dealloc(newIndexValue)
                 throw e
               }
@@ -280,19 +280,22 @@ class ConcurrentLogHashMap(
    * @param valueSize
    * @return
    */
-  private def allocBlock(valueSize: Int): COORD = {
-    reader.lock
-    try {
-      val segment = segments.get(currentSegment)
-      if (segment.compactFactor >= 3.0) {
-        segment.compact(3.0)
+  private def allocBlock(indexBytesToGrow: Int, valueSize: Int): COORD = {
+    if (totalSizeInBytes + indexBytesToGrow < maxSizeInBytes) {
+      //try the optimal case without new segment allocation
+      reader.lock
+      try {
+        val segment = segments.get(currentSegment)
+        if (segment.compactFactor >= 3.0) {
+          segment.compact(3.0)
+        }
+        val newBlock = segment.alloc(valueSize)
+        if (newBlock >= 0) {
+          return (false, currentSegment, newBlock)
+        }
+      } finally {
+        reader.unlock
       }
-      val newBlock = segment.alloc(valueSize)
-      if (newBlock >= 0) {
-        return (false, currentSegment, newBlock)
-      }
-    } finally {
-      reader.unlock
     }
 
     //could not allocate block in the current segment, need to allocate new segment
@@ -306,7 +309,7 @@ class ConcurrentLogHashMap(
 
       //then see if recycling is required
       val sample = segments.get(currentSegment)
-      val estimateRequiredBytes = segmentSizeMb * 1024 * 1024 + (sample.totalSizeInBytes - sample.capacity)
+      val estimateRequiredBytes = segmentSizeMb * 1024 * 1024 + indexBytesToGrow + (sample.totalSizeInBytes - sample.capacity)
       if (totalSizeInBytes + estimateRequiredBytes > maxSizeInBytes) {
         recycleNumBytes(totalSizeInBytes + estimateRequiredBytes - maxSizeInBytes)
       }
