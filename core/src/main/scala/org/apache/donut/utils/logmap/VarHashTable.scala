@@ -139,9 +139,17 @@ class VarHashTable(val initialCapacityKb: Int, loadFactor: Double = 0.7) {
       while (hashPos + rowLen <= data.capacity) {
         val hash = data.getInt(hashPos)
         if (hash != 0 && hash != Int.MinValue) {
-          f(getValue(hashPos)) match {
-            case null => data.putInt(hashPos, Int.MinValue)
-            case newValue => putValue(hashPos, newValue)
+          val prevValue = getValue(hashPos)
+          val newValue = f(prevValue)
+          newValue match {
+            case null => if (prevValue != null) {
+              data.putInt(hashPos, Int.MinValue)
+              loaded -= 1
+            }
+            case newValue => if (!newValue.equals(prevValue)) {
+              putValue(hashPos, newValue)
+              if (prevValue == null) loaded += 1
+            }
           }
         }
         hashPos += rowLen

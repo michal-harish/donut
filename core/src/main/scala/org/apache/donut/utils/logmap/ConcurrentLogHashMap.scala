@@ -376,7 +376,7 @@ class ConcurrentLogHashMap(
   def printStats(details: Boolean): Unit = {
     reader.lock
     try {
-      println(s"LOGHASHMAP: index.size = ${index.size} seg.entires = ${size} " +
+      println(s"LOGHASHMAP(${currentSegment}/${numSegments}): index.size = ${index.size} seg.entires = ${size} " +
         s"total.capacity = ${capacityInBytes / 1024 / 1024} Mb " +
         s"current.memory = ${totalSizeInBytes / 1024 / 1024} Mb " +
         s"(of that index: ${index.sizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})" +
