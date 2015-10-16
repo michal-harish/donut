@@ -126,7 +126,7 @@ class SegmentTest extends FlatSpec with Matchers {
       segment.get(p) should be(testBlock)
     }
     println(s"${numEntries} x GET > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")
-    segment.printStats(0)
+    println(segment.stats(0))
 //  TODO separate compression test but depending on a design this may be only higher level class functionality
 //    segment.compress
 //    println(s"COMPRESS > s.size = ${segment.size}, s.compression = ${segment.compressRatio}; ${segment.usedBytes / 1024} Kb")

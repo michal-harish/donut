@@ -24,7 +24,9 @@ import java.util.Arrays;
 public class ByteUtils {
 
     public static byte[] bufToArray(ByteBuffer b) {
-        if (b.hasArray()) {
+        if (b == null) {
+            return null;
+        } else if (b.hasArray()) {
             if (b.position() == 0 && b.arrayOffset() == 0 && b.limit() == b.capacity()) {
                 return b.array();
             } else {
@@ -32,9 +34,11 @@ public class ByteUtils {
             }
         } else {
             byte[] a = new byte[b.remaining()];
-            int bp = b.position();
-            b.get(a);
-            b.position(bp);
+            if (b.remaining() > 0) {
+                int bp = b.position();
+                b.get(a);
+                b.position(bp);
+            }
             return a;
         }
     }

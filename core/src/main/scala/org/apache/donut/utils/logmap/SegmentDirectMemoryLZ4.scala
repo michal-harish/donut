@@ -446,11 +446,11 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 //    }
 //  }
 
-  override def printStats(s: Short): Unit = {
-    println(s"SEGMENT[${s}] num.entries = ${size}, total.size = ${totalSizeInBytes / 1024 / 1024} Mb " +
+  override def stats(s: Short): String = {
+    s"SEGMENT[${s}] num.entries = ${size}, total.size = ${totalSizeInBytes / 1024 / 1024} Mb " +
       s" (INDEX size = ${index.count}, capacity = ${index.capacityInBytes / 1024 / 1024} Mb)" +
       s", load.factor = ${loadFactor}},  compact.factor = ${compactFactor}" +
-      s", compression = ${compressRatio * 100.0} %")
+      s", compression = ${compressRatio * 100.0} %"
   }
 
 }

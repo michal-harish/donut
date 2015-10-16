@@ -112,6 +112,6 @@ trait Segment {
   private[logmap] def get(block: Int): ByteBuffer = get(block, (b:ByteBuffer) => b)
 
 
-  def printStats(s: Short): Unit
+  def stats(s: Short): String
 
 }

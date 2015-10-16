@@ -23,6 +23,7 @@ import java.util.Properties
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{ConcurrentHashMap, Executors, TimeUnit}
 
+import org.apache.donut.metrics.Metric
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
@@ -39,7 +40,7 @@ import scala.collection.JavaConverters._
  *
  */
 
-abstract class DonutAppTask(config: Properties, val logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
+abstract class DonutAppTask(config: Properties, /*TODO val masterUrl: URL,*/ val logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
   extends Runnable {
 
   private val log = LoggerFactory.getLogger(classOf[DonutAppTask])
@@ -62,11 +63,10 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
 
   private[donut] def executeCommand(cmd: String) = {}
 
-  private var masterTrackingUrl: URL = null
+  private var masterUrl: URL = null
 
   def registerWithMasterTracking(url: URL) = {
-    this.masterTrackingUrl = url
-    postTrackingInfo(Map("type" -> this.getClass.getSimpleName))
+    this.masterUrl = url
   }
 
   protected def awaitingTermination
@@ -139,24 +139,35 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
     }
   }
 
-
-  private def postTrackingInfo(map: Map[String,String]) = {
-    val params = map + ("p" -> logicalPartition.toString)
-    val uri = "?" + params.map { case (k, v) => s"${k}=${URLEncoder.encode(v, "UTF-8")}" }.mkString("&")
-    val url = new URL(masterTrackingUrl, uri)
-    log.info(s"POST ${url.toString}")
-    val c = url.openConnection.asInstanceOf[HttpURLConnection]
-    try {
-      c.setRequestMethod("POST")
-      c.setRequestProperty("User-Agent", "DonutApp")
-      c.setRequestProperty("Accept-Language", "en-US,en;q=0.5")
-      if (c.getResponseCode != 202) {
-        log.warn(s"POST not accepted by the master tracker at ${masterTrackingUrl}, request = ${params}" +
-          s", response = ${c.getResponseCode}: ")
+  protected def sendMetric(name: String, cls: Class[_ <: Metric], value: Any): Unit = {
+    var lastError:Throwable = null
+    var numRetries = 0
+    while (numRetries < 5) {
+      val params = Map("p" -> logicalPartition.toString, "c" -> cls.getCanonicalName, "n" -> name, "v" -> value.toString)
+      val uri = "/metrics?" + params.map { case (k, v) => s"${k}=${URLEncoder.encode(v, "UTF-8")}" }.mkString("&")
+      val url = new URL(masterUrl, uri)
+      log.debug(s"POST ${url.toString}")
+      val c = url.openConnection.asInstanceOf[HttpURLConnection]
+      try {
+        c.setRequestMethod("POST")
+        c.setRequestProperty("User-Agent", "DonutApp")
+        c.setRequestProperty("Accept-Language", "en-US,en;q=0.5")
+        if (c.getResponseCode == 202) {
+          return
+        } else {
+          throw new Exception(s"POST not accepted by the master tracker at ${masterUrl}, request = ${params}" +
+            s", response = ${c.getResponseCode}: ")
+        }
+      } catch {
+        case e: Throwable => {
+          lastError = e
+          numRetries += 1
+        }
+      } finally {
+        c.disconnect
       }
-    } finally {
-      c.disconnect
     }
+    log.warn(s"Could not send metric ${name} value ${value} after ${numFetchers} retries", lastError)
   }
 
 }

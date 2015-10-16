@@ -56,6 +56,12 @@ class ConcurrentLogHashMap(
                             val compressMinBlockSize: Int,
                             val indexLoadFactor: Double = 0.7) {
 
+  //TODO def iterator[X] returns unsafe iterator as it unlocks the reader right after the instantiation so we need
+  // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate in the index
+  // - also the default iterator is dangerous in another respect - the ByteBuffer pointing to the value doesn't use
+  // any of the read locks so it should be removed and only expose the generic iterator.
+  // This needs to work safely before we expose the iterator to an external api for RDDs etc.
+
   //TODO design the compression scheme and trigger followed by a merge of segments with joint load factor =< 1.0
   // OPTION A: If a block is being moved (by get-touch) from a compressed group it will also remain in the
   // compressed group - what should really happen is that since we're uncompressing the block it would make sense
@@ -63,9 +69,6 @@ class ConcurrentLogHashMap(
   // OPTION B:  a custom class of ByteBuffer for lz4 buffers could remember which block is it pointing
   // OPTION C: compression managed by the map class, segment not aware what is storing - this way we can do some
   // sophisticated compress-and-merge compactions truly freeing segments for recycling
-
-  //TODO def iterator[X] returns unsafe iterator as it unlocks the reader right after the instantiation so we need
-  // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate in the index
 
   //TODO generalise hash table into  VarHashTable[K] and use K.hashCode so that we can do correction for 0 and
   // Int.MinValue hashCodes transparently. Also atm the first 4 bytes of any key:ByteBuffer
@@ -149,8 +152,14 @@ class ConcurrentLogHashMap(
     }
   }
 
-  final def iterator: Iterator[(ByteBuffer, ByteBuffer)] = iterator(b => b)
-
+  /**
+   * generic iterator which takes a mapper function to convert the value ByteBuffer
+   * - the ByteBuffer key returned by .next of this iterator cannot be stored by reference
+   * as the iterator may reuse the bytebuffer or the underlying memory can change after the it is consumed.
+   * @param mapper
+   * @tparam X
+   * @return
+   */
   def iterator[X](mapper: (ByteBuffer) => X): Iterator[(ByteBuffer, X)] = {
     reader.lock
     try {
@@ -387,30 +396,32 @@ class ConcurrentLogHashMap(
     }
   }
 
-  def printStats(details: Boolean): Unit = {
+  def stats(details: Boolean): Seq[String]= {
     reader.lock
     try {
-      println(s"LOGHASHMAP(${currentSegment}/${numSegments}): index.size = ${index.size} seg.entires = ${size} " +
+      Seq((s"LOGHASHMAP(${currentSegment}/${numSegments}): index.size = ${index.size} seg.entires = ${size} " +
         s"total.capacity = ${capacityInBytes / 1024 / 1024} Mb " +
         s"current.memory = ${totalSizeInBytes / 1024 / 1024} Mb " +
         s"(of that index: ${index.sizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})" +
-        s", compression = ${compressRatio} ")
-      if (details) {
-        segmentIndex.asScala.reverse.foreach(s => segments.get(s).printStats(s))
+        s", compression = ${compressRatio} ")) ++
+        (if (details) {
+        segmentIndex.asScala.reverse.map(s => segments.get(s).stats(s)) ++
         segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment))
-          .foreach(s => s.printStats(-1))
-      }
+          .map(s => s.stats(-1))
+      } else {
+        Seq()
+      })
     } finally {
       reader.unlock
     }
   }
 
-  def onEvictEntry(key: ByteBuffer) = {
-    /**
-     * To be overriden for applications that wish to get notified about any key evicted from the tail during recycling
-     * of segments
-     */
-  }
+  /**
+   * onEvictEntry - for applications to override to get notified about any key evicted from the tail during recycling
+   * @param key sliced buffer pointing to the key in the underlying hash table. the key should not be referenced
+   *            outside call to onEvictEntry as they key ByteBuffer may be reused be the wrapping iterator
+   */
+  def onEvictEntry(key: ByteBuffer) = {}
 
 
 //  def applyCompression(fraction: Double): Unit = {

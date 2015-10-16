@@ -203,28 +203,33 @@ case class KafkaUtils(val config: Properties) {
 
   }
 
-  def createSnappyProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
+  def createSnappyProducer[P <: Partitioner](async: Boolean, numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
                                             (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", numAcks.toString)
-    put("producer.type", "async")
     put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
     put("partitioner.class", p.runtimeClass.getName)
-    put("batch.num.messages", batchSize.toString)
-    put("queue.buffering.max.messages", queueSize.toString)
     put("compression.codec", "2") //SNAPPY
+    if (async) {
+      put("producer.type", "async")
+      put("batch.num.messages", batchSize.toString)
+      put("queue.buffering.max.messages", queueSize.toString)
+    }
+
   }))
 
-  def createCompactProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
+  def createCompactProducer[P <: Partitioner](async: Boolean, numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
                                              (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
     put("metadata.broker.list", config.get("kafka.brokers"))
     put("request.required.acks", numAcks.toString)
-    put("producer.type", "async")
     put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
     put("partitioner.class", p.runtimeClass.getName)
-    put("batch.num.messages", batchSize.toString)
-    put("queue.buffering.max.messages", queueSize.toString)
     put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
+    if (async) {
+      put("producer.type", "async")
+      put("batch.num.messages", batchSize.toString)
+      put("queue.buffering.max.messages", queueSize.toString)
+    }
   }))
 
   def createDebugConsumer(topic: String, processor: (ByteBuffer, ByteBuffer) => Unit) = {

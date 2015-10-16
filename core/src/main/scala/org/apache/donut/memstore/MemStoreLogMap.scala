@@ -29,7 +29,7 @@ class MemStoreLogMap(val map: ConcurrentLogHashMap) extends MemStore {
 
   override def put(key: ByteBuffer, value: ByteBuffer): Unit = map.put(key, value)
 
-  override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = map.iterator
+  override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = map.iterator[ByteBuffer](b => b)
 
-  override def printStats(details: Boolean): Unit = map.printStats(details)
+  override def stats(details: Boolean): Seq[String] = map.stats(details)
 }

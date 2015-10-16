@@ -40,8 +40,13 @@ abstract class MemStore {
 
   def put(key: ByteBuffer, value: ByteBuffer): Unit
 
+  /**
+   * default iterator - both key and value ByteBuffers given by .next on this iterator
+   * may be reused by the underlying implementations so they should not be stored by reference.
+   * @return
+   */
   def iterator: Iterator[(ByteBuffer, ByteBuffer)]
 
-  def printStats(details: Boolean): Unit
+  def stats(details: Boolean): Seq[String]
 
 }

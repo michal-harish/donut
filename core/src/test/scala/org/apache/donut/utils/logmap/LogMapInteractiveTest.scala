@@ -70,7 +70,7 @@ object LogMapInteractiveTest extends App with Matchers {
           "\n\tcompress <fraction>\t\tcompress any segments in the tail of the log that occupies more than <fraction> of total hash map memory" +
           "\n\texit")
       }
-      m.printStats(true)
+      m.stats(details = true).foreach(println)
     } catch {
       case i: InterruptedException => e.shutdownNow
       case t: Throwable => t.printStackTrace

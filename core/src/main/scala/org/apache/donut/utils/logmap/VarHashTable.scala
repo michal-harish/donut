@@ -95,6 +95,11 @@ class VarHashTable(val initialCapacityKb: Int, private val loadFactor: Double = 
     cube.values.asScala.foreach(hashTable => hashTable.update(f))
   }
 
+  /**
+   * index iterator - the ByteBuffer pointing to the .next key cannot be stored by reference as the ByteBuffer
+   * may be reused by the underlying hash table iterator
+   * @return Iterator(key, pointer)
+   */
   def iterator = new Iterator[(ByteBuffer, VAL)] {
     private val ct = cube.values.iterator
     private var tt: Iterator[(ByteBuffer, VAL)] = null
