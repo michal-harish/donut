@@ -18,9 +18,11 @@ package org.apache.donut
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import java.net.{HttpURLConnection, URL, URLEncoder}
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{ConcurrentHashMap, Executors, TimeUnit}
+
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
@@ -41,7 +43,7 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
   extends Runnable {
 
   private val log = LoggerFactory.getLogger(classOf[DonutAppTask])
-  val kafkaUtils = KafkaUtils(config)
+  protected[donut] val kafkaUtils = KafkaUtils(config)
 
   private val topicPartitions: Map[String, Int] = kafkaUtils.getPartitionMap(topics)
 
@@ -59,6 +61,13 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
   private[donut] val bootSequence = new ConcurrentHashMap[String, Boolean]()
 
   private[donut] def executeCommand(cmd: String) = {}
+
+  private var masterTrackingUrl: URL = null
+
+  def registerWithMasterTracking(url: URL) = {
+    this.masterTrackingUrl = url
+    postTrackingInfo(Map("type" -> this.getClass.getSimpleName))
+  }
 
   protected def awaitingTermination
 
@@ -82,9 +91,9 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
       }
     }
   }
-  
+
   final protected[donut] def propagateException(e: Throwable): Unit = {
-    fetcherMonitor.synchronized{
+    fetcherMonitor.synchronized {
       fetcherMonitor.set(e)
       fetcherMonitor.notify
     }
@@ -130,5 +139,24 @@ abstract class DonutAppTask(config: Properties, val logicalPartition: Int, total
     }
   }
 
+
+  private def postTrackingInfo(map: Map[String,String]) = {
+    val params = map + ("p" -> logicalPartition.toString)
+    val uri = "?" + params.map { case (k, v) => s"${k}=${URLEncoder.encode(v, "UTF-8")}" }.mkString("&")
+    val url = new URL(masterTrackingUrl, uri)
+    log.info(s"POST ${url.toString}")
+    val c = url.openConnection.asInstanceOf[HttpURLConnection]
+    try {
+      c.setRequestMethod("POST")
+      c.setRequestProperty("User-Agent", "DonutApp")
+      c.setRequestProperty("Accept-Language", "en-US,en;q=0.5")
+      if (c.getResponseCode != 202) {
+        log.warn(s"POST not accepted by the master tracker at ${masterTrackingUrl}, request = ${params}" +
+          s", response = ${c.getResponseCode}: ")
+      }
+    } finally {
+      c.disconnect
+    }
+  }
 
 }

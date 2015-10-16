@@ -20,19 +20,22 @@ package org.apache.donut
 
 import java.io.IOException
 import java.lang.reflect.Constructor
+import java.net.NetworkInterface
 import java.util.Properties
 import java.util.concurrent.{Executors, TimeUnit}
 
 import org.apache.yarn1.{YarnClient, YarnContainerRequest, YarnMaster}
 import org.slf4j.LoggerFactory
 
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 /**
  * Created by mharis on 14/09/15.
  * The DonutApp must be extended by the application and then either runOnYarn or runLocally
  */
-class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) extends YarnMaster(config) {
+class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T]) extends YarnMaster(config) {
+  config.setProperty("yarn1.application.type", "DONUT")
 
   private val log = LoggerFactory.getLogger(classOf[DonutApp[_]])
 
@@ -46,8 +49,14 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
   val taskPriority: Int = config.getProperty("task.priority", "0").toInt
   val updateFrequencyMs = TimeUnit.MINUTES.toMillis(1)
 
-  private var numLogicalPartitions = -1
-  private var lastProgress: (Long, Float) = (-1, 0f)
+  def numLogicalPartitions = numPartitions
+
+  type PARTITION_INFO = (String, Int, Long, Long, Long)
+
+  private var numPartitions = -1
+  private var lastOffsets: (Long, Seq[PARTITION_INFO]) = (-1, Seq())
+
+  private var ui: TrackerWebUI = null
 
   final def runOnYarn(awaitCompletion: Boolean): Unit = {
     try {
@@ -71,23 +80,25 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
    */
   final def runLocally(debugOnePartition: Int = -1): Unit = {
     try {
-      val ui = new WebUI("localmaster")
-      numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
+      numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
       val taskConstructor: Constructor[T] = taskClass.getConstructor(
         classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
-      val executor = Executors.newFixedThreadPool(numLogicalPartitions + 1)
-      val tasks: Seq[T] = if (debugOnePartition >= 0) {
-        val t0 = taskConstructor.newInstance(config, new Integer(debugOnePartition), new Integer(numLogicalPartitions), topics)
+      val executor = Executors.newFixedThreadPool(numPartitions + 1)
+      val tasks = (if (debugOnePartition >= 0) {
+        val t0 = taskConstructor.newInstance(config, new Integer(debugOnePartition), new Integer(numPartitions), topics)
         executor.submit(t0)
         Seq(t0)
-      } else (0 to numLogicalPartitions - 1).map(lp => {
-        val t = taskConstructor.newInstance(config, new Integer(lp), new Integer(numLogicalPartitions), topics)
+      } else (0 to numPartitions - 1).map(lp => {
+        val t = taskConstructor.newInstance(config, new Integer(lp), new Integer(numPartitions), topics)
         executor.submit(t)
         t
-      })
+      }))
 
+      ui = new TrackerWebUI(this, "localhost", 8099)
       ui.start
       try {
+        tasks.foreach(_.registerWithMasterTracking(ui.url))
+
         executor.submit(new Runnable() {
           val in = scala.io.Source.stdin.getLines
 
@@ -102,7 +113,7 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
         })
 
         executor.shutdown
-        println("Application Master: " + ui.url)
+
         while (!executor.isTerminated) {
           if (executor.awaitTermination(updateFrequencyMs, TimeUnit.MILLISECONDS)) return
           println(s"Progress ${getProgress * 100.0}%")
@@ -119,17 +130,56 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
     System.exit(0)
   }
 
+  final override protected def getTrackingURL(): java.net.URL = {
+    val addresses = NetworkInterface.getNetworkInterfaces.asScala.flatMap(_.getInterfaceAddresses.asScala).map(_.getAddress)
+    val availableAddresses = addresses.filter(_.isSiteLocalAddress).toList
+    val namedHosts = availableAddresses.filter(a => a.getHostAddress != a.getCanonicalHostName)
+    val host = if (namedHosts.size > 0) {
+      namedHosts.head.getCanonicalHostName
+    } else {
+      availableAddresses.head.getHostAddress
+    }
+
+    if (ui == null) {
+      ui = new TrackerWebUI(this, host, 0)
+      ui.start
+    }
+    ui.url
+  }
+
   /**
    * Yarn Master Startup hook
    */
-  final protected override def onStartUp(args: Array[String]): Unit = {
-    numLogicalPartitions = kafkaUtils.getNumLogicalPartitions(topics)
+  final override protected def onStartUp(args: Array[String]): Unit = {
+    numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
     val taskHeapMemMb = taskOverheadMemMb * 4 / 5
-    val taskDirectMemMb = totalMainMemoryMb / numLogicalPartitions + (taskOverheadMemMb - taskHeapMemMb)
-    requestContainerGroup((0 to numLogicalPartitions - 1).map(lp => {
-      val args: Array[String] = Array(taskClass.getName, lp.toString, numLogicalPartitions.toString) ++ topics
+    val taskDirectMemMb = totalMainMemoryMb / numPartitions + (taskOverheadMemMb - taskHeapMemMb)
+    requestContainerGroup((0 to numPartitions - 1).map(lp => {
+      val args: Array[String] = Array(taskClass.getName, ui.url.toString, lp.toString, numPartitions.toString) ++ topics
       new YarnContainerRequest(DonutYarnContainer.getClass, args, taskPriority, taskDirectMemMb, taskHeapMemMb, 1)
     }).toArray)
+  }
+
+  /**
+   * Yarn Master Completion hook
+   */
+  override protected def onCompletion: Unit = {
+    if (ui != null) {
+      ui.stop
+      ui = null
+    }
+  }
+
+  final def getLastOffsets: Seq[PARTITION_INFO] = lastOffsets._2
+
+  final def getLastProgress: Float = {
+    val progress: Seq[Double] = getLastOffsets.map { case (topic, partition, earliest, consumed, latest) => {
+      val availableOffsets = latest - earliest
+      (consumed - earliest).toDouble / availableOffsets.toDouble
+    }
+    }
+    val avgProgress = if (progress.size == 0) 0f else (progress.sum / progress.size)
+    if (avgProgress.isNaN) 0f else math.min(math.max(0, avgProgress), 1).toFloat
   }
 
   /**
@@ -138,9 +188,9 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
    * @return average percentage representation of how the underlying fetchers are caught up with available data.
    */
   final protected override def getProgress: Float = {
-    if (lastProgress._1 + updateFrequencyMs < System.currentTimeMillis) {
+    if (lastOffsets._1 + updateFrequencyMs < System.currentTimeMillis) {
       try {
-        val offsets = kafkaUtils.getPartitionMap(topics).flatMap {
+        val offsets: Seq[(String, Int, Long, Long, Long)] = kafkaUtils.getPartitionMap(topics).flatMap {
           case (topic, numPartitions) => (0 to numPartitions - 1).map(partition => {
             val leader = kafkaUtils.findLeader(topic, partition)
             val consumer = new kafkaUtils.PartitionConsumer(topic, partition, leader, 10000, 64 * 1024, groupId)
@@ -153,19 +203,12 @@ class DonutApp[T <: DonutAppTask](config: Properties)(implicit t: ClassTag[T]) e
             result
           })
         }.toSeq
-
-        val progress: Seq[Double] = offsets.map { case (topic, partition, earliest, consumed, latest) => {
-          val availableOffsets = latest - earliest
-          (consumed - earliest).toDouble / availableOffsets.toDouble
-        }
-        }
-        val avgProgress = if (progress.size == 0) 0f else (progress.sum / progress.size)
-        lastProgress = (System.currentTimeMillis, if (avgProgress.isNaN) 0f else math.min(math.max(0, avgProgress), 1).toFloat)
+        lastOffsets = (System.currentTimeMillis, offsets)
       } catch {
         case e: IOException => log.warn("Could not read logical partition progress due to exception", e)
       }
     }
-    lastProgress._2
+    getLastProgress
   }
 
 }

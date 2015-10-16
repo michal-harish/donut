@@ -23,6 +23,7 @@ import java.util
 
 import kafka.serializer.Encoder
 import kafka.utils.VerifiableProperties
+import org.apache.donut.utils.ByteUtils
 
 /**
  * Created by mharis on 16/09/15.
@@ -35,6 +36,6 @@ class KafkaByteBufferEncoder extends Encoder[ByteBuffer] {
 
   override def toBytes(t: ByteBuffer): Array[Byte] = t match {
     case null => null
-    case b => util.Arrays.copyOfRange(t.array, t.arrayOffset, t.arrayOffset + t.remaining)
+    case b => ByteUtils.bufToArray(t)
   }
 }
