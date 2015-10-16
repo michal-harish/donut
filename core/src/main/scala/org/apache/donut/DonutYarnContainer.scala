@@ -31,13 +31,21 @@ object DonutYarnContainer {
   def main(args: Array[String]): Unit = {
     try {
       val taskClass = Class.forName(args(0)).asInstanceOf[Class[DonutAppTask]]
-      val masterUrl = new URL(args(1))
+
       val taskConstructor: Constructor[DonutAppTask] = taskClass.getConstructor(
-          classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
+        classOf[Properties],
+        classOf[URL],
+        classOf[Int],
+        classOf[Int],
+        classOf[Seq[String]])
+
       val taskInstance = taskConstructor.newInstance(
-        YarnClient.getAppConfiguration, Integer.valueOf(args(2)), Integer.valueOf(args(3)), (4 to args.length-1).map(args(_))
-      )
-      taskInstance.registerWithMasterTracking(masterUrl)
+        YarnClient.getAppConfiguration,
+        new URL(args(1)),
+        Integer.valueOf(args(2)),
+        Integer.valueOf(args(3)),
+        (4 to args.length-1).map(args(_)))
+
       taskInstance.run
     } catch {
       case e: Throwable => {

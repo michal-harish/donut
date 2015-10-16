@@ -70,7 +70,8 @@ The project contains one submodule so after cloning you need to run: `git submod
 
 ### TODOs
 
-- **Basic Application Master UI** with some guice server running on each task which which provides aggregate information about which nodes run which partitions on which port and reports progress, state stats, etc.
-- **Expose Local Storage as Key-Value API** and try mapping a Spark RDD onto it - this requires some basic Application Master UI 
+- WebUI: Add failed containers information to each logical partition, first as a number of times it failed with links to the list of failed container ids and host
+- **Expose Local Storage as Key-Value API** and try mapping a Spark RDD onto it - this requires some basic Application Master UI
+- WebUI: Add per-partition processing progress and bootstrap progress where applicable
 - The consumer group currently doesn't implement any rebalance algorithm so either check if the appName is already running on cluster or implement rebalance 
 - Bootstrap fetcher could be stopped after it is caught up provided the delta fetcher updates the local state but this requires the DeltaFetcher to move the state topic offset as well which itself requires a custom producer implementation - the Kafka Producer API returns message offset but is not exposed with default Producer. It could be done using producer callback.handler but the problematic part is that the state and delta topics may not have same number of partitions. 

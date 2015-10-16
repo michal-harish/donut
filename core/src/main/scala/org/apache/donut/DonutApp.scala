@@ -20,7 +20,7 @@ package org.apache.donut
 
 import java.io.IOException
 import java.lang.reflect.Constructor
-import java.net.NetworkInterface
+import java.net.{URL, NetworkInterface}
 import java.util.Properties
 import java.util.concurrent.{Executors, TimeUnit}
 
@@ -81,23 +81,24 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
   final def runLocally(debugOnePartition: Int = -1): Unit = {
     try {
       numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
-      val taskConstructor: Constructor[T] = taskClass.getConstructor(
-        classOf[Properties], classOf[Int], classOf[Int], classOf[Seq[String]])
-      val executor = Executors.newFixedThreadPool(numPartitions + 1)
-      val tasks = (if (debugOnePartition >= 0) {
-        val t0 = taskConstructor.newInstance(config, new Integer(debugOnePartition), new Integer(numPartitions), topics)
-        executor.submit(t0)
-        Seq(t0)
-      } else (0 to numPartitions - 1).map(lp => {
-        val t = taskConstructor.newInstance(config, new Integer(lp), new Integer(numPartitions), topics)
-        executor.submit(t)
-        t
-      }))
 
       ui = new TrackerWebUI(this, "localhost", 8099)
       ui.start
       try {
-        tasks.foreach(_.registerWithMasterTracking(ui.url))
+        val executor = Executors.newFixedThreadPool(numPartitions + 1)
+
+        val taskConstructor: Constructor[T] = taskClass.getConstructor(
+          classOf[Properties], classOf[URL], classOf[Int], classOf[Int], classOf[Seq[String]])
+
+        val tasks = (if (debugOnePartition >= 0) {
+          val t0 = taskConstructor.newInstance(config, ui.url, new Integer(debugOnePartition), new Integer(numPartitions), topics)
+          executor.submit(t0)
+          Seq(t0)
+        } else (0 to numPartitions - 1).map(lp => {
+          val t = taskConstructor.newInstance(config, ui.url, new Integer(lp), new Integer(numPartitions), topics)
+          executor.submit(t)
+          t
+        }))
 
         executor.submit(new Runnable() {
           val in = scala.io.Source.stdin.getLines

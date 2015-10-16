@@ -34,13 +34,14 @@ import scala.collection.JavaConverters._
  *
  * The task may either be run in an executor or yarn container
  * @param config - initial configuration for the entire application
+ * @param trackingUrl - url of the master for tracking metrics
  * @param logicalPartition - the index of logical partition for this task
  * @param totalLogicalPartitions - number of logical partitions determined by the DonutApp
  * @param topics - list of topics to consume
  *
  */
 
-abstract class DonutAppTask(config: Properties, /*TODO val masterUrl: URL,*/ val logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
+abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logicalPartition: Int, totalLogicalPartitions: Int, topics: Seq[String])
   extends Runnable {
 
   private val log = LoggerFactory.getLogger(classOf[DonutAppTask])
@@ -62,12 +63,6 @@ abstract class DonutAppTask(config: Properties, /*TODO val masterUrl: URL,*/ val
   private[donut] val bootSequence = new ConcurrentHashMap[String, Boolean]()
 
   private[donut] def executeCommand(cmd: String) = {}
-
-  private var masterUrl: URL = null
-
-  def registerWithMasterTracking(url: URL) = {
-    this.masterUrl = url
-  }
 
   protected def awaitingTermination
 
@@ -145,7 +140,7 @@ abstract class DonutAppTask(config: Properties, /*TODO val masterUrl: URL,*/ val
     while (numRetries < 5) {
       val params = Map("p" -> logicalPartition.toString, "c" -> cls.getCanonicalName, "n" -> name, "v" -> value.toString)
       val uri = "/metrics?" + params.map { case (k, v) => s"${k}=${URLEncoder.encode(v, "UTF-8")}" }.mkString("&")
-      val url = new URL(masterUrl, uri)
+      val url = new URL(trackingUrl, uri)
       log.debug(s"POST ${url.toString}")
       val c = url.openConnection.asInstanceOf[HttpURLConnection]
       try {
@@ -155,7 +150,7 @@ abstract class DonutAppTask(config: Properties, /*TODO val masterUrl: URL,*/ val
         if (c.getResponseCode == 202) {
           return
         } else {
-          throw new Exception(s"POST not accepted by the master tracker at ${masterUrl}, request = ${params}" +
+          throw new Exception(s"POST not accepted by the master tracker at ${trackingUrl}, request = ${params}" +
             s", response = ${c.getResponseCode}: ")
         }
       } catch {
