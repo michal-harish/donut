@@ -28,6 +28,7 @@ import kafka.common.{OffsetAndMetadata, TopicAndPartition}
 import kafka.consumer.{ConsumerConfig, Consumer, SimpleConsumer}
 import kafka.message.MessageAndMetadata
 import kafka.producer.{KeyedMessage, Partitioner, ProducerConfig, Producer}
+import kafka.serializer.DefaultEncoder
 import org.slf4j.LoggerFactory
 
 /**
@@ -206,38 +207,60 @@ case class KafkaUtils(val config: Properties) {
   }
 
   /**
-   * Kafka producer helpers - since kafka 0.8.2 distinction of sync and async is gone and numAcks=-1 represents
-   * the most async mode while compression cannot be applied to compacted topics
+   * Kafka producer helpers - we need to treat the compaction-deletion and sync-async asepcts as separate concerns
+   * because: 1) compacted topic cannot use compression 2) async producers may call the encoder at later stage
+   * so cannot use zero-copy buffers
    */
 
-  def createSnappyProducer[P <: Partitioner](async: Boolean, numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
-                                            (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
-    put("metadata.broker.list", config.get("kafka.brokers"))
-    put("request.required.acks", numAcks.toString)
-    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
-    put("partitioner.class", p.runtimeClass.getName)
-    put("compression.codec", "2") //SNAPPY
-    if (async) {
+  def snappySyncProducer[P <: Partitioner](numAcks: Int)(implicit p: Manifest[P]) = {
+    new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+      put("metadata.broker.list", config.get("kafka.brokers"))
+      put("request.required.acks", numAcks.toString)
+      put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
+      put("partitioner.class", p.runtimeClass.getName)
+      put("compression.codec", "2") //SNAPPY
+      put("producer.type", "sync")
+    }))
+  }
+
+  def snappyAsyncProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 5000)(implicit p: Manifest[P]) = {
+    new Producer[Array[Byte], Array[Byte]](new ProducerConfig(new java.util.Properties {
+      put("metadata.broker.list", config.get("kafka.brokers"))
+      put("request.required.acks", numAcks.toString)
+      put("serializer.class", classOf[DefaultEncoder].getName)
+      put("partitioner.class", p.runtimeClass.getName)
+      put("compression.codec", "2") //SNAPPY
+      put("producer.type", "async")
+    }))
+  }
+
+  def compactSyncProducer[P <: Partitioner](numAcks: Int)(implicit p: Manifest[P]) = {
+    new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+      put("metadata.broker.list", config.get("kafka.brokers"))
+      put("request.required.acks", numAcks.toString)
+      put("serializer.class", classOf[DefaultEncoder].getName)
+      put("partitioner.class", p.runtimeClass.getName)
+      put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
+      put("producer.type", "sync")
+    }))
+  }
+
+  def compactAsyncProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)(implicit p: Manifest[P]) = {
+    new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+      put("metadata.broker.list", config.get("kafka.brokers"))
+      put("request.required.acks", numAcks.toString)
+      put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
+      put("partitioner.class", p.runtimeClass.getName)
+      put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
       put("producer.type", "async")
       put("batch.num.messages", batchSize.toString)
       put("queue.buffering.max.messages", queueSize.toString)
-    }
+    }))
+  }
 
-  }))
-
-  def createCompactProducer[P <: Partitioner](async: Boolean, numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
-                                             (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
-    put("metadata.broker.list", config.get("kafka.brokers"))
-    put("request.required.acks", numAcks.toString)
-    put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
-    put("partitioner.class", p.runtimeClass.getName)
-    put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
-    if (async) {
-      put("producer.type", "async")
-      put("batch.num.messages", batchSize.toString)
-      put("queue.buffering.max.messages", queueSize.toString)
-    }
-  }))
+  /**
+   * Debuggin tools
+   */
 
   def createDebugConsumer(topic: String, processor: (ByteBuffer, ByteBuffer) => Unit) = {
     val consumer = Consumer.create(new ConsumerConfig(new Properties() {

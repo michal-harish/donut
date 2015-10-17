@@ -40,18 +40,28 @@ object DonutYarnContainer {
         classOf[Seq[String]])
 
       val taskInstance = taskConstructor.newInstance(
-        YarnClient.getAppConfiguration,
-        new URL(args(1)),
-        Integer.valueOf(args(2)),
-        Integer.valueOf(args(3)),
-        (4 to args.length-1).map(args(_)))
+        YarnClient.getAppConfiguration, //conf
+        new URL(args(1)), //master url
+        Integer.valueOf(args(2)), //logicalPartition
+        Integer.valueOf(args(3)), //numLogicalPartitions
+        (4 to args.length - 1).map(args(_))) //followed by application arguments
 
-      taskInstance.run
+      try {
+        taskInstance.run
+      } catch {
+        case e: Throwable => {
+          e.printStackTrace()
+          System.exit(22)
+        }
+      }
+
     } catch {
       case e: Throwable => {
+        //TODO create UI interface and separate it from DonutAppTask so that we can also show errors when
+        //we don't have instance of task yet
         e.printStackTrace()
-        Thread.sleep(5000)
-        System.exit(2)
+        Thread.sleep(15000)
+        System.exit(21)
       }
     }
   }

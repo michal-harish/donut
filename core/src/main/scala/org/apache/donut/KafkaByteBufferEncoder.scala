@@ -28,7 +28,12 @@ import org.apache.donut.utils.ByteUtils
 /**
  * Created by mharis on 16/09/15.
  *
- * Produce message from a ByteBuffer without side effect on the given buffer
+ * Produce message from a ByteBuffer without side effect on the given buffer.
+ * Note: If the ByteBuffer key is backed by array and the entire buffer's content
+ * is the remaining range of bytes, ByteUtils.bufToArray will reuse the underlying
+ * array. That means that both sync and async producers may point to a volatile
+ * memory which must be taken into account when implementing processors with
+ * producers that use KafkaByteBufferEncoder
  */
 class KafkaByteBufferEncoder extends Encoder[ByteBuffer] {
 

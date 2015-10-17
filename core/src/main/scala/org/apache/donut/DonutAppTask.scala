@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{ExecutorService, ConcurrentHashMap, Executors, TimeUnit}
 
 import org.apache.donut.metrics.{Progress, Metric}
+import org.apache.donut.ui.{UI, WebUI}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
@@ -67,6 +68,8 @@ abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logica
   protected def onShutdown
 
   protected def createFetcher(topic: String, partition: Int, groupId: String): Fetcher
+
+  protected val ui: UI = new WebUI(logicalPartition, trackingUrl)
 
   private[donut] def checkBootSequenceCompleted: Boolean = {
     if (bootSequenceCompleted) {
@@ -118,10 +121,10 @@ abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logica
           val (start, end) = f.getProgressRange
           ((f.getNextFetchOffset.toDouble - start) / (end - start)).toFloat
         }).toSeq
-        sendMetric("progress", classOf[Progress], progress.sum / progress.size, progressHint)
+        ui.updateMetric("progress", classOf[Progress], progress.sum / progress.size, progressHint)
 
         fetcherMonitor.synchronized {
-          fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(60))
+          fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(30))
         }
         if (fetcherMonitor.get != null) {
           throw new Exception(s"Error in task for logical partition ${logicalPartition}", fetcherMonitor.get)
@@ -131,46 +134,11 @@ abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logica
     } catch {
       case e: Throwable => {
         log.error("Task terminated with error", e)
+        ui.updateError(e)
         if (executor != null) executor.shutdown
         throw e
       }
     }
-  }
-
-  protected def sendMetric(name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Unit = {
-    var lastError: Throwable = null
-    var numRetries = 0
-    while (numRetries < 5) {
-      val params = Map(
-        "p" -> logicalPartition.toString,
-        "c" -> cls.getCanonicalName,
-        "n" -> name,
-        "v" -> value.toString,
-        "h" -> hint)
-      val uri = "/metrics?" + params.map { case (k, v) => s"${k}=${URLEncoder.encode(v, "UTF-8")}" }.mkString("&")
-      val url = new URL(trackingUrl, uri)
-      log.debug(s"POST ${url.toString}")
-      val c = url.openConnection.asInstanceOf[HttpURLConnection]
-      try {
-        c.setRequestMethod("POST")
-        c.setRequestProperty("User-Agent", "DonutApp")
-        c.setRequestProperty("Accept-Language", "en-US,en;q=0.5")
-        if (c.getResponseCode == 202) {
-          return
-        } else {
-          throw new Exception(s"POST not accepted by the master tracker at ${trackingUrl}, request = ${params}" +
-            s", response = ${c.getResponseCode}: ")
-        }
-      } catch {
-        case e: Throwable => {
-          lastError = e
-          numRetries += 1
-        }
-      } finally {
-        c.disconnect
-      }
-    }
-    log.warn(s"Could not send metric ${name} value ${value} after ${numFetchers} retries", lastError)
   }
 
 }
