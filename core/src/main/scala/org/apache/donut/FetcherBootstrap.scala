@@ -33,13 +33,15 @@ abstract class FetcherBootstrap(task: DonutAppTask, topic: String, partition: In
 
   override private[donut] val initialFetchOffset: Long = consumer.getEarliestOffset
 
-  private val bootSequenceId = s"$topic:$partition"
+  private[donut] val bootSequenceId = s"$topic:$partition"
 
   private var booted = initialFetchOffset >= getCheckpointOffset
 
+  override def getProgressRange: (Long, Long) = (initialFetchOffset, getCheckpointOffset)
+
   task.bootSequence.put(bootSequenceId, booted)
 
-  log.debug(s"[$bootSequenceId]: initialOffset = $initialFetchOffset, checkpoint offset = $getCheckpointOffset")
+  log.info(s"[$bootSequenceId]: initialOffset = $initialFetchOffset, checkpoint offset = $getCheckpointOffset")
 
   protected def isBooted: Boolean = booted
 

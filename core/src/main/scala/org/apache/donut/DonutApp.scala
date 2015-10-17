@@ -84,6 +84,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
 
       ui = new TrackerWebUI(this, "localhost", 8099)
       ui.start
+      println("Local Tracking URL: " + ui.url)
       try {
         val executor = Executors.newFixedThreadPool(numPartitions + 1)
 
@@ -100,19 +101,6 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
           t
         }))
 
-        executor.submit(new Runnable() {
-          val in = scala.io.Source.stdin.getLines
-
-          override def run(): Unit = {
-            print("\n>")
-            while (in.hasNext) {
-              val cmd = in.next
-              tasks.foreach(_.executeCommand(cmd))
-              print("\n>")
-            }
-          }
-        })
-
         executor.shutdown
 
         while (!executor.isTerminated) {
@@ -128,6 +116,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
         System.exit(1)
       }
     }
+
     System.exit(0)
   }
 
@@ -197,7 +186,13 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
             val consumer = new kafkaUtils.PartitionConsumer(topic, partition, leader, 10000, 64 * 1024, groupId)
             var result = (topic, partition, -1L, -1L, -1L)
             try {
-              result = (topic, partition, consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
+              val earliest = consumer.getEarliestOffset
+              val latest =  consumer.getLatestOffset
+              val consumedOffset = consumer.getOffset match {
+                case co if (co < earliest || co > latest) => earliest
+                case cc => cc
+              }
+              result = (topic, partition, earliest, consumedOffset, latest)
             } finally {
               consumer.close
             }

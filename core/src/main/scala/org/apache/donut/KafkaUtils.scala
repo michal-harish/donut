@@ -27,13 +27,15 @@ import kafka.cluster.Broker
 import kafka.common.{OffsetAndMetadata, TopicAndPartition}
 import kafka.consumer.{ConsumerConfig, Consumer, SimpleConsumer}
 import kafka.message.MessageAndMetadata
-import kafka.producer.{Partitioner, ProducerConfig, Producer}
+import kafka.producer.{KeyedMessage, Partitioner, ProducerConfig, Producer}
 import org.slf4j.LoggerFactory
 
 /**
  * Created by mharis on 14/09/15.
  */
 case class KafkaUtils(val config: Properties) {
+
+  type MESSAGE = KeyedMessage[Array[Byte], Array[Byte]]
   private val log = LoggerFactory.getLogger(classOf[DonutApp[_]])
 
   val kafkaBrokers = config.getProperty("kafka.brokers")
@@ -202,6 +204,11 @@ case class KafkaUtils(val config: Properties) {
     def commitOffset(offset: Long, failOnError: Boolean): Unit = commitGroupOffset(groupId, topicAndPartition, offset, failOnError)
 
   }
+
+  /**
+   * Kafka producer helpers - since kafka 0.8.2 distinction of sync and async is gone and numAcks=-1 represents
+   * the most async mode while compression cannot be applied to compacted topics
+   */
 
   def createSnappyProducer[P <: Partitioner](async: Boolean, numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)
                                             (implicit p: Manifest[P]) = new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {

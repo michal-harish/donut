@@ -33,6 +33,12 @@ abstract class FetcherDelta(task: DonutAppTask, topic: String, partition: Int, g
 
   override private[donut] def onOutOfRangeOffset = consumer.getEarliestOffset
 
+  /**
+   * This shouldn't be called too frequently as it queries the broker for the earliest and latest offsets
+   * @return proportion of consumed to available data in the underlying kafka partition
+   */
+  override def getProgressRange: (Long, Long) = (consumer.getEarliestOffset, consumer.getLatestOffset)
+
   log.debug(s"${topicAndPartition}: initialOffset = ${initialFetchOffset} ")
 
   final override private[donut] def internalHandleMessageSet(messageSet: ByteBufferMessageSet): Long = {

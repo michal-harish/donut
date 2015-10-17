@@ -55,11 +55,19 @@ abstract class Fetcher(val task: DonutAppTask, topic: String, partition: Int, gr
   private[donut] val initialFetchOffset: Long
 
   private var lastCheckpointCommitValue = fetchConsumerOffsetFromCoordinator()
-  private var lastCheckpointCommitTime = -1L
 
+  @volatile private var lastCheckpointCommitTime = -1L
   private[donut] def getCheckpointOffset = lastCheckpointCommitValue
 
-  private var nextFetchOffset: Long = -1L
+  @volatile private var nextFetchOffset: Long = -1L
+  private[donut] def getNextFetchOffset = nextFetchOffset
+
+  /**
+   * Abstract progress - value depends on the particular fetcher type but should represent the most
+   * important aspect by which the fetcher is either lagging or is caught up.
+   * This shouldn't be called too frequently as the implementations may need to query external services.
+   */
+  private[donut] def getProgressRange: (Long, Long)
 
   override def run(): Unit = {
     try {

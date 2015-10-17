@@ -21,9 +21,9 @@ package org.apache.donut
 import java.net.{HttpURLConnection, URL, URLEncoder}
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.{ConcurrentHashMap, Executors, TimeUnit}
+import java.util.concurrent.{ExecutorService, ConcurrentHashMap, Executors, TimeUnit}
 
-import org.apache.donut.metrics.Metric
+import org.apache.donut.metrics.{Progress, Metric}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
@@ -58,11 +58,9 @@ abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logica
 
   private val fetcherMonitor = new AtomicReference[Throwable](null)
 
-  private var bootSequenceCompleted = false
+  @volatile private var bootSequenceCompleted = false
 
   private[donut] val bootSequence = new ConcurrentHashMap[String, Boolean]()
-
-  private[donut] def executeCommand(cmd: String) = {}
 
   protected def awaitingTermination
 
@@ -95,27 +93,35 @@ abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logica
   }
 
   final override def run: Unit = {
-    log.info(s"Starting Task for logical partition ${logicalPartition}/${totalLogicalPartitions} of topics ${topics}")
-    val fetchers = partitionsToConsume.flatMap {
-      case (topic, partitions) => partitions.map(partition => {
-        log.info(s"Initializing fetcher for physical partition ${topic}/$partition in group ${config.getProperty("group.id")}")
-        createFetcher(topic, partition, config.getProperty("group.id"))
-      })
-    }
-    bootSequenceCompleted = bootSequence.size == 0 || checkBootSequenceCompleted
-    if (bootSequenceCompleted) {
-      log.info(s"No boot sequence required, launching ${fetchers.size} fetchers.")
-    }
-    else {
-      log.info("Initializing boot sequence: " + bootSequence.asScala.filter(!_._2).map(_._1).mkString(","))
-    }
-    val executor = Executors.newFixedThreadPool(fetchers.size)
-    fetchers.foreach(fetcher => executor.submit(fetcher))
-    executor.shutdown
+    var executor: ExecutorService = null
     try {
+      log.info(s"Starting Task for logical partition ${logicalPartition}/${totalLogicalPartitions} of topics ${topics}")
+      val fetchers = partitionsToConsume.flatMap {
+        case (topic, partitions) => partitions.map(partition => {
+          log.info(s"Initializing fetcher for physical partition ${topic}/$partition in group ${config.getProperty("group.id")}")
+          createFetcher(topic, partition, config.getProperty("group.id"))
+        })
+      }
+      bootSequenceCompleted = bootSequence.size == 0 || checkBootSequenceCompleted
+      if (bootSequenceCompleted) {
+        log.info(s"No boot sequence required, launching ${fetchers.size} fetchers.")
+      }
+      else {
+        log.info("Initializing boot sequence: " + bootSequence.asScala.filter(!_._2).map(_._1).mkString(","))
+      }
+      executor = Executors.newFixedThreadPool(fetchers.size)
+      fetchers.foreach(fetcher => executor.submit(fetcher))
+      executor.shutdown
       while (!executor.isTerminated) {
+        val progressHint = if (!bootSequenceCompleted) "bootstrap in progress.." else "processing in progress.."
+        val progress = fetchers.filter(_.isInstanceOf[FetcherBootstrap] ^ bootSequenceCompleted).map(f => {
+          val (start, end) = f.getProgressRange
+          ((f.getNextFetchOffset.toDouble - start) / (end - start)).toFloat
+        }).toSeq
+        sendMetric("progress", classOf[Progress], progress.sum / progress.size, progressHint)
+
         fetcherMonitor.synchronized {
-          fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(30))
+          fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(60))
         }
         if (fetcherMonitor.get != null) {
           throw new Exception(s"Error in task for logical partition ${logicalPartition}", fetcherMonitor.get)
@@ -125,20 +131,22 @@ abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logica
     } catch {
       case e: Throwable => {
         log.error("Task terminated with error", e)
-        executor.shutdown
+        if (executor != null) executor.shutdown
         throw e
       }
-    } finally {
-      executor.awaitTermination(1, TimeUnit.SECONDS)
-      onShutdown
     }
   }
 
-  protected def sendMetric(name: String, cls: Class[_ <: Metric], value: Any): Unit = {
-    var lastError:Throwable = null
+  protected def sendMetric(name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Unit = {
+    var lastError: Throwable = null
     var numRetries = 0
     while (numRetries < 5) {
-      val params = Map("p" -> logicalPartition.toString, "c" -> cls.getCanonicalName, "n" -> name, "v" -> value.toString)
+      val params = Map(
+        "p" -> logicalPartition.toString,
+        "c" -> cls.getCanonicalName,
+        "n" -> name,
+        "v" -> value.toString,
+        "h" -> hint)
       val uri = "/metrics?" + params.map { case (k, v) => s"${k}=${URLEncoder.encode(v, "UTF-8")}" }.mkString("&")
       val url = new URL(trackingUrl, uri)
       log.debug(s"POST ${url.toString}")

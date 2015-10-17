@@ -9,13 +9,15 @@ import scala.collection.JavaConverters._
  */
 abstract class Metric {
 
-  protected var data = new ConcurrentHashMap[Int, String]()
+  protected var data = new ConcurrentHashMap[Int, (String, String)]()
 
-  def get(partition: Int): String = data.get(partition)
+  def value(partition: Int): String = if (data.containsKey(partition)) data.get(partition)._1 else null
 
-  def put(partition: Int, value: String) = data.put(partition, value)
+  def hint(partition: Int): String = if (data.containsKey(partition)) data.get(partition)._2 else ""
 
-  def get: String = aggregate(data.values.asScala)
+  def put(partition: Int, value: String, hint: String) = data.put(partition, (value, hint))
+
+  def value: String = aggregate(data.values.asScala.map(_._1))
 
   protected def aggregate(values: Iterable[String]): String
 
