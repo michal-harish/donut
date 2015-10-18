@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.apache.donut.utils;
+package org.mha.utils;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;

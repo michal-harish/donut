@@ -22,6 +22,7 @@ import java.lang.reflect.Constructor
 import java.net.URL
 import java.util.Properties
 
+import org.apache.donut.ui.WebUI
 import org.apache.yarn1.YarnClient
 
 /**
@@ -29,9 +30,9 @@ import org.apache.yarn1.YarnClient
  */
 object DonutYarnContainer {
   def main(args: Array[String]): Unit = {
+    val masterUrl = new URL(args(1))
     try {
       val taskClass = Class.forName(args(0)).asInstanceOf[Class[DonutAppTask]]
-
       val taskConstructor: Constructor[DonutAppTask] = taskClass.getConstructor(
         classOf[Properties],
         classOf[URL],
@@ -50,16 +51,15 @@ object DonutYarnContainer {
         taskInstance.run
       } catch {
         case e: Throwable => {
-          e.printStackTrace()
+          taskInstance.ui.updateError(e)
           System.exit(22)
         }
       }
 
     } catch {
       case e: Throwable => {
-        //TODO create UI interface and separate it from DonutAppTask so that we can also show errors when
-        //we don't have instance of task yet
         e.printStackTrace()
+        new WebUI(masterUrl).updateError(e)
         Thread.sleep(15000)
         System.exit(21)
       }

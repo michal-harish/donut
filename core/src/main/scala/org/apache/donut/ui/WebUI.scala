@@ -8,13 +8,15 @@ import org.apache.donut.metrics.Metric
 /**
  * Created by mharis on 17/10/15.
  */
-class WebUI(partition: Int, existingMasterUrl: URL) extends UI {
+class WebUI(partition: Int, masterUrl: URL) extends UI {
+
+  def this(masterUrl: URL) = this(-1, masterUrl)
 
   def this() = this(-1, null)
 
   @volatile private var server: WebUIServer = null
 
-  private var url: URL = existingMasterUrl
+  private var url: URL = masterUrl
 
   override def serverUrl: URL = url
 
@@ -44,32 +46,26 @@ class WebUI(partition: Int, existingMasterUrl: URL) extends UI {
   }
 
   override def updateMetric(name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Boolean = {
-    try {
-      post("/metrics", Map(
+    post("/metrics", Map(
         "p" -> partition.toString,
         "c" -> cls.getCanonicalName,
         "n" -> name,
         "v" -> value.toString,
         "h" -> hint))
-    } catch {
-      case e: Throwable => false
-    }
   }
 
-  override def updateError(e: Throwable): Boolean = try {
+  override def updateError(e: Throwable): Boolean = {
     post("/errors", Map(
       "p" -> partition.toString,
-      "e" -> e.getClass.getCanonicalName,
+      "e" -> e.getMessage,
       "t" -> e.getStackTraceString
     ))
-  } catch {
-    case e: Throwable => false
   }
 
   private def post(uri: String, params: Map[String, String]): Boolean = {
     var lastError: Throwable = null
     var numRetries = 0
-    while (numRetries < 3) try {
+    while (numRetries < 5) try {
       val postUrl = new URL(url, uri + "?" +
         params.map { case (k, v) => s"${k}=${URLEncoder.encode(v, "UTF-8")}" }.mkString("&"))
       //log.debug(s"POST ${url.toString}")
@@ -91,6 +87,7 @@ class WebUI(partition: Int, existingMasterUrl: URL) extends UI {
       case e: Throwable => {
         lastError = e
         numRetries += 1
+        if (numRetries < 3) Thread.sleep(500)
       }
     }
     throw lastError

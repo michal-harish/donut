@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.apache.donut.utils.logmap
+package org.mha.utils.logmap
 
 import java.nio.ByteBuffer
 

@@ -2,7 +2,7 @@ package org.apache.donut.memstore
 
 import java.nio.ByteBuffer
 
-import org.apache.donut.utils.logmap.ConcurrentLogHashMap
+import org.mha.utils.logmap.ConcurrentLogHashMap
 
 /**
  * Created by mharis on 05/10/15.

@@ -23,7 +23,7 @@ import java.util
 
 import kafka.serializer.Encoder
 import kafka.utils.VerifiableProperties
-import org.apache.donut.utils.ByteUtils
+import org.mha.utils.ByteUtils
 
 /**
  * Created by mharis on 16/09/15.

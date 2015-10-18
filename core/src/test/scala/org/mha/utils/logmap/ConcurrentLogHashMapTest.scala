@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.apache.donut.utils.logmap
+package org.mha.utils.logmap
 
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 import java.util.concurrent.{Executors, TimeUnit, TimeoutException}
-
-import org.apache.donut.utils.ByteUtils
+import org.mha.utils.ByteUtils
 import org.scalatest.{FlatSpec, Matchers}
 
 /**

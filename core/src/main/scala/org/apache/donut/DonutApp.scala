@@ -153,7 +153,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
    * @return average percentage representation of how the underlying fetchers are caught up with available data.
    */
   final protected override def getProgress: Float = {
-    ui.getLatestProgress
+    math.min(math.max(0, ui.getLatestProgress), 1)
   }
 
   /**

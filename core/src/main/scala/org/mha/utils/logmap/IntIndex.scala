@@ -16,33 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.apache.donut.utils.logmap
-
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
+package org.mha.utils.logmap
 
 /**
  * Created by mharis on 01/10/15.
+ *
+ * Non-Thread-Safe structure for Int-to-Int index
  */
-class IntIndexTest extends FlatSpec with Matchers {
 
-  val index = new IntIndex(65)
+final class IntIndex(val growBlockSize: Int) {
 
-  index.capacityInBytes should be (0)
+  val data = new GrowableByteBuffer(growBlockSize)
 
-  (0 to 15).foreach(i => {
-    index.put(1) should be (i)
-    index.capacityInBytes should be(65)
-    index.get(i) should be(1)
-  })
+  def capacityInBytes: Int = data.capacity
 
-  (16 to 31).foreach(i => {
-    index.put(2) should be (i)
-    index.capacityInBytes should be(130)
-    index.get(i) should be(2)
-  })
+  def sizeInBytes: Int = data.size
 
-  (0 to 31).foreach(i => {
-    index.get(i) should be (i / 16 + 1)
-  })
+  def count: Int = data.size / 4
+
+  def put(value: Int, index: Int = -1): Int = data.putInt(index * 4, value) / 4
+
+  def get(position: Int): Int = data.getInt(position * 4)
+
+  def clear = data.clear
+
 }

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.apache.donut.utils.logmap
+package org.mha.utils.logmap
 
 import java.nio.ByteBuffer
 import java.util
-import org.apache.donut.utils.ByteUtils
+import org.mha.utils.ByteUtils
 import org.scalatest.{FlatSpec, Matchers}
 
 /**

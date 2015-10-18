@@ -18,6 +18,7 @@
 
 package org.apache.donut.utils
 
+import org.mha.utils.ByteUtils
 import org.scalatest.{FlatSpec, Matchers}
 
 /**

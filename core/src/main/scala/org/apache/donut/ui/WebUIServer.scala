@@ -1,20 +1,22 @@
 package org.apache.donut.ui
 
+import java.util.concurrent.ConcurrentSkipListMap
+
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
-import fi.iki.elonen.NanoHTTPD.{Response, IHTTPSession}
+import fi.iki.elonen.NanoHTTPD.{IHTTPSession, Response}
 import org.apache.donut.DonutApp
-import org.apache.donut.metrics.{Progress, Info, Metric}
+import org.apache.donut.metrics.{Info, Metric, Progress}
 import org.apache.hadoop.yarn.api.records.ContainerId
 
-import scala.collection.mutable
+import scala.collection.JavaConverters._
 
 /**
  * Created by mharis on 17/10/15.
  */
 private[ui] class WebUIServer(val app: DonutApp[_], val host: String, val port: Int) extends NanoHTTPD(port) {
 
-  private val metrics = mutable.LinkedHashMap[String, Metric]()
+  private val metrics = new ConcurrentSkipListMap[String, Metric]()
 
   val appClass = app.getClass.getSimpleName
   val taskType = app.taskClass.getSimpleName
@@ -22,8 +24,8 @@ private[ui] class WebUIServer(val app: DonutApp[_], val host: String, val port: 
     (if (app.config.getProperty("max.tasks", "-1") == "-1") "" else s"bounded ")
 
   def getProgress(partition: Int = -1): Float = {
-    metrics.get("progress") match {
-      case Some(metric: Progress) => partition match {
+    metrics.get("input progress") match {
+      case metric: Progress if (metric != null) => partition match {
         case -1 => metric.value.toFloat
         case p => metric.value(p).toFloat
       }
@@ -49,11 +51,11 @@ private[ui] class WebUIServer(val app: DonutApp[_], val host: String, val port: 
     try {
       val params = session.getParms
       val partition = params.remove("p").toInt
-      val exceptionClass: String = params.get("e")
-      val stackTrace: String = params.get("t ")
-      if (!metrics.contains("last-error")) metrics.put("last-error", new Info)
-      val metric: Metric = metrics("last-error")
-      metric.put(partition, metric.value(partition) + s"<pre>${exceptionClass}\n${stackTrace}</pre>", "")
+      val message: String = params.get("e")
+      val trace: String = params.get("t")
+      if (!metrics.containsKey("last-error")) metrics.put("last-error", new Info)
+      val metric: Metric = metrics.get("last-error")
+      metric.put(partition, metric.value(partition) + s"${message}<br/><pre>\n${trace}</pre>", "")
       new Response(Status.ACCEPTED, NanoHTTPD.MIME_PLAINTEXT, "")
     } catch {
       case e: IllegalArgumentException => new Response(Status.BAD_REQUEST, NanoHTTPD.MIME_PLAINTEXT, e.getMessage)
@@ -73,8 +75,8 @@ private[ui] class WebUIServer(val app: DonutApp[_], val host: String, val port: 
       val value: String = params.get("v")
       val hint: String = params.get("h")
       val cls = Class.forName(params.get("c")).asSubclass(classOf[Metric])
-      if (!metrics.contains(name)) metrics.put(name, cls.newInstance)
-      val metric: Metric = metrics(name)
+      if (!metrics.containsKey(name)) metrics.put(name, cls.newInstance)
+      val metric: Metric = metrics.get(name)
       if (!cls.isInstance(metric)) {
         throw new IllegalArgumentException(s"Metric ${name} expected to be of type ${metric.getClass}")
       }
@@ -91,67 +93,104 @@ private[ui] class WebUIServer(val app: DonutApp[_], val host: String, val port: 
   }
 
   private def serveMain(session: IHTTPSession): Response = {
-    val activePartitions = (0 to app.numLogicalPartitions - 1).filter(p => metrics.exists(_._2.value(p) != null))
+    val activePartitions = (0 to app.numLogicalPartitions - 1).filter(p => metrics.asScala.exists(_._2.value(p) != null))
     new Response(
       "<!DOCTYPE html><html lang=\"en\">" +
         "<head>" +
+        "<meta charset=\"utf-8\" /> " +
         "<link rel=\"stylesheet\" type=\"text/css\" href=\"//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css\"/>" +
+        "<script src=\"https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js\"></script>" +
+        "<script src=\"http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js\"></script>" +
         "</head>" +
         "<body class=\"container\">" + htmlHeader +
         s"<h3>Logical Partitions <small>ACTIVE ${activePartitions.size} / ${app.numLogicalPartitions}</small></h3>" +
         htmlMetricsTable(activePartitions) +
-        s"<h3>Input Topics <small>${subsType}</small></h3>" +
-        s"<ul>${app.topics.map(t => s"<li>${t}</li>").mkString}</ul>" +
         "</body></html>"
     )
   }
 
   private def htmlHeader: String = {
-    val p = (100 * getProgress(-1)).toInt
-    val style = if (p > 90) "success" else if (p > 50) "info" else if (p > 20) "warning" else "danger"
-    s"<div class='row'>" +
-      s"<h2>${appClass} <small>&nbsp;YARN Master | KAFKA Group Id: ${app.config.get("group.id")}</small></h2></div>" +
+    val p = math.round((100 * getProgress(-1)))
+    val style = if (p >= 99) "info" else if (p > 90) "success" else if (p > 30) "warning" else "danger"
+
+    def htmlMemory: String = {
+      val c = app.getRunningContainers.asScala.map{ case (cid, container) => container.capability}
+      val totalMb = c.map(_.getMemory).sum
+      val totalCores = c.map(_.getVirtualCores).sum
+      s"<p>Total Memory: <em>${totalMb} Mb</em>, Total Cores: <em>${totalCores}</em></p>"
+    }
+
+    return s"<div class='row'>" +
+      s"<h2>${appClass} <small>${htmlMemory}| KAFKA GROUP ID: ${app.config.get("group.id")}</small></h2></div>" +
       s"<div class='row'><div class='progress'>" +
-      s"<div class='progress-bar progress-bar-${style} progress-bar-striped' role='progressbar' aria-valuenow='${p}' aria-valuemin='0' aria-valuemax='100' style='width:${p}%'>${p}%</div>" +
-      s"</div></div>"
+      s"<div class='progress-bar progress-bar-${style} progress-bar-striped' role='progressbar' aria-valuenow='${p}' aria-valuemin='0' aria-valuemax='100' style='width:${p}%'>" +
+      s"${p}% <i>input streams(${subsType}): </i> ${app.topics.mkString("&nbsp;&amp;&nbsp;")}" +
+      s"</div></div></div>"
+
   }
+
 
   private def htmlMetricsTable(activePartitions: Seq[Int]): String = {
-    def htmlPartitionTR(partition: Int) = {
-      s"<tr><td>${partition}</td>" +
-        metrics.map { case (name, metric) => s"<td>${htmlMetric(partition, metric)}</td>" }.mkString +
-        "<td>" + htmlContainers(partition) + "</td></tr>"
+
+    val metrics = this.metrics.asScala
+    val tabs = metrics.filter(_._1.contains(":")).map(_._1.split(":")(0)).toSet
+
+    def htmlTabContent(tab: String ) = {
+      val filtered = if (tabs.size == 0) metrics else metrics.filter(m => !m._1.contains(":") || m._1.split(":")(0) == tab)
+      def htmlPartitionTR(partition: Int) = {
+        s"<tr><td>${partition}</td>" +
+          filtered.map { case (name, metric) => s"<td>${htmlMetric(partition, metric)}</td>" }.mkString +
+          "<td>" + htmlContainers(partition) + "</td></tr>"
+      }
+      s"<table class='table table-striped table-condensed'>" +
+        s"<thead>" +
+        s"<tr><th>∑</th>" + filtered.map { case (name, metric) => s"<th>${htmlMetric(-1, metric)}</th>" }.mkString +
+        "<th>-</th></tr>" +
+        s"<tr><td><i>P</i></td>${filtered.map(x => s"<td>${x._1}</td>").mkString}<td>container</td></tr>" +
+        s"</thead>" +
+        s"<tbody>${activePartitions.map(htmlPartitionTR).mkString("\n")}</tbody></table>"
     }
-    s"<table class='table table-striped table-condensed'>" +
-      s"<thead>" +
-      s"<tr><th>*</th>" + metrics.map { case (name, metric) => s"<th>${htmlMetric(-1, metric)}</th>" }.mkString +
-      "<th>-</th></tr>" +
-      s"<tr><td>part.</td>${metrics.map(x => s"<td>${x._1}</td>").mkString}<td>container</td></tr>" +
-      s"</thead>" +
-      s"<tbody>${activePartitions.map(htmlPartitionTR).mkString("\n")}</tbody></table>"
+
+    return if (tabs.size == 0) {
+      htmlTabContent("*")
+    } else {
+      "<ul class=\"nav nav-tabs\">" +
+        (tabs.map(tab => s"<li><a data-toggle='tab' href='#${tab.replace(" ","_")}'>${tab}</a></li>")).mkString("\n") +
+        "</ul><div class=\"tab-content\">" +
+        (tabs.map(tab => s"<div id='${tab.replace(" ","_")}' class='tab-pane fade in active'><h3>${tab}</h3>${htmlTabContent(tab)}</div>")).mkString("\n") +
+        "</div>"
+    }
   }
 
-  private def htmlContainers(partition: Int): Any = {
-    val completed = getCompletedCntainers(partition)
-    "<div><em>" + {
+
+  private def htmlContainers(partition: Int): String = {
+
+    def htmlActiveContainer(partition: Int): String = {
       val (containerId, stderrLogs, stdoutLogs) = getActiveContainer(partition)
       (if (containerId == null) "" else s"${containerId}:&nbsp;<a href='${stderrLogs}'>stderr</a>&nbsp;<a href='${stdoutLogs}'>stdout</a>")
-    } + "</em>"
-    (completed.map { case (containerId, stderrLogs, stdoutLogs, existStatus) => {
-      s"${containerId}:&nbsp;<a href='${stderrLogs}'>stderr</a>&nbsp;<a href='${stdoutLogs}'>stdout</a>"
+
     }
-    }.mkString("<br/>")) +
-      "</div>"
+
+    def htmlCompletedContainers(partition: Int): String = {
+      getCompletedContainers(partition).map {
+        case (affress, stderrLogs, stdoutLogs, existStatus) => {
+          s"${affress} (exit status ${existStatus}):&nbsp;<a href='${stderrLogs}'>stderr</a>&nbsp;<a href='${stdoutLogs}'>stdout</a>"
+        }
+      }.mkString("<br/>")
+    }
+
+    return "<div>[<em>" + htmlActiveContainer(partition) + "] </em><br/>" + htmlCompletedContainers(partition) + "</div>"
+
   }
 
   private def htmlMetric(partition: Int, metric: Metric) = {
     val value = if (partition == -1) metric.value else if (metric.value(partition) != null) metric.value(partition) else null
     val hint = if (partition == -1) "" else metric.hint(partition)
     val style = (if (partition == -1) " progress-bar-striped"
-    else if (hint.contains("bootstrap")) " progress-bar-danger" else " progress-bar-success")
+    else if (hint.contains("bootstrap")) " progress-bar-danger" else "")
     val content = metric match {
       case m: Progress => {
-        val p = if (value == null) 0 else (value.toFloat * 100).toInt
+        val p = math.round(if (value == null) 0 else (value.toFloat * 100))
         s"<div class='progress' style='margin-bottom: 0 !important;'>" +
           s"<div class='progress-bar${style}' role='progressbar' aria-valuenow='${p}' aria-valuemin='0' aria-valuemax='100' style='width:${p}%'>${p}%</div></div>"
       }
@@ -167,23 +206,24 @@ private[ui] class WebUIServer(val app: DonutApp[_], val host: String, val port: 
   /**
    *
    * @param partition
-   * @return (containerId, stderrLogsUrl, stdoutLogsUrl)
+   * @return (node/container, stderrLogsUrl, stdoutLogsUrl)
    */
-  private def getActiveContainer(partition: Int): (ContainerId, String, String) = {
+  private def getActiveContainer(partition: Int): (String, String, String) = {
     val it = app.getRunningContainers.entrySet.iterator
     while (it.hasNext) {
       val entry = it.next
-      val containerSpec = entry.getValue
-      val containerLaunchArgLogicalPartition = containerSpec.args(2).toInt
+      val container = entry.getValue
+      val containerLaunchArgLogicalPartition = container.args(2).toInt
       if (containerLaunchArgLogicalPartition == partition) {
-        return (entry.getKey, containerSpec.getLogsUrl("stderr"), containerSpec.getLogsUrl("stdout"))
+        val id = container.getNodeAddress() + "/" + entry.getKey.toString
+        return (id,  container.getLogsUrl("stderr"), container.getLogsUrl("stdout"))
       }
     }
     (null, null, null)
   }
 
-  private def getCompletedCntainers(partition: Int): List[(ContainerId, String, String, Int)] = {
-    val builder = List.newBuilder[(ContainerId, String, String, Int)]
+  private def getCompletedContainers(partition: Int): List[(String, String, String, Int)] = {
+    val builder = List.newBuilder[(String, String, String, Int)]
     val it = app.getCompletedContainers.entrySet.iterator
     while (it.hasNext) {
       val entry = it.next
@@ -191,7 +231,7 @@ private[ui] class WebUIServer(val app: DonutApp[_], val host: String, val port: 
       val containerLaunchArgLogicalPartition = container.args(2).toInt
       if (containerLaunchArgLogicalPartition == partition) {
         builder += ((
-          entry.getKey,
+          container.getNodeAddress + "/" + entry.getKey,
           container.getLogsUrl("stderr"),
           container.getLogsUrl("stdout"),
           container.getStatus.getExitStatus

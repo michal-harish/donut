@@ -25,9 +25,8 @@ import java.util.Properties
 import kafka.api._
 import kafka.cluster.Broker
 import kafka.common.{OffsetAndMetadata, TopicAndPartition}
-import kafka.consumer.{ConsumerConfig, Consumer, SimpleConsumer}
-import kafka.message.MessageAndMetadata
-import kafka.producer.{KeyedMessage, Partitioner, ProducerConfig, Producer}
+import kafka.consumer.{Consumer, ConsumerConfig, SimpleConsumer}
+import kafka.producer.{KeyedMessage, Partitioner, Producer, ProducerConfig}
 import kafka.serializer.DefaultEncoder
 import org.slf4j.LoggerFactory
 
@@ -238,7 +237,7 @@ case class KafkaUtils(val config: Properties) {
     new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
       put("metadata.broker.list", config.get("kafka.brokers"))
       put("request.required.acks", numAcks.toString)
-      put("serializer.class", classOf[DefaultEncoder].getName)
+      put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
       put("partitioner.class", p.runtimeClass.getName)
       put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
       put("producer.type", "sync")

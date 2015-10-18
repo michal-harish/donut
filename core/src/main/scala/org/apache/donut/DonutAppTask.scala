@@ -18,12 +18,12 @@ package org.apache.donut
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import java.net.{HttpURLConnection, URL, URLEncoder}
+import java.net.URL
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.{ExecutorService, ConcurrentHashMap, Executors, TimeUnit}
+import java.util.concurrent.{ConcurrentHashMap, ExecutorService, Executors, TimeUnit}
 
-import org.apache.donut.metrics.{Progress, Metric}
+import org.apache.donut.metrics.Progress
 import org.apache.donut.ui.{UI, WebUI}
 import org.slf4j.LoggerFactory
 
@@ -69,7 +69,7 @@ abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logica
 
   protected def createFetcher(topic: String, partition: Int, groupId: String): Fetcher
 
-  protected val ui: UI = new WebUI(logicalPartition, trackingUrl)
+  protected[donut] val ui: UI = new WebUI(logicalPartition, trackingUrl)
 
   private[donut] def checkBootSequenceCompleted: Boolean = {
     if (bootSequenceCompleted) {
@@ -116,25 +116,24 @@ abstract class DonutAppTask(config: Properties, val trackingUrl: URL, val logica
       fetchers.foreach(fetcher => executor.submit(fetcher))
       executor.shutdown
       while (!executor.isTerminated) {
-        val progressHint = if (!bootSequenceCompleted) "bootstrap in progress.." else "processing in progress.."
+        val progressHint = if (!bootSequenceCompleted) "state bootstrap progress.." else "delta input progress.."
         val progress = fetchers.filter(_.isInstanceOf[FetcherBootstrap] ^ bootSequenceCompleted).map(f => {
           val (start, end) = f.getProgressRange
           ((f.getNextFetchOffset.toDouble - start) / (end - start)).toFloat
         }).toSeq
-        ui.updateMetric("progress", classOf[Progress], progress.sum / progress.size, progressHint)
+        ui.updateMetric("input progress", classOf[Progress], progress.sum / progress.size, progressHint)
 
         fetcherMonitor.synchronized {
           fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(30))
         }
         if (fetcherMonitor.get != null) {
-          throw new Exception(s"Error in task for logical partition ${logicalPartition}", fetcherMonitor.get)
+          throw fetcherMonitor.get
         }
         awaitingTermination
       }
     } catch {
       case e: Throwable => {
         log.error("Task terminated with error", e)
-        ui.updateError(e)
         if (executor != null) executor.shutdown
         throw e
       }

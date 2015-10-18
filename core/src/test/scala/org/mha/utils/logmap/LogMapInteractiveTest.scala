@@ -1,9 +1,8 @@
-package org.apache.donut.utils.logmap
+package org.mha.utils.logmap
 
 import java.nio.ByteBuffer
 import java.util.concurrent.{Executors, TimeUnit}
-
-import org.apache.donut.utils.ByteUtils
+import org.mha.utils.ByteUtils
 import org.scalatest.Matchers
 
 import scala.util.Random

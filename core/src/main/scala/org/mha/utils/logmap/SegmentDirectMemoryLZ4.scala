@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.apache.donut.utils.logmap
+package org.mha.utils.logmap
 
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 import net.jpountz.lz4.LZ4Factory
-import org.apache.donut.utils.AtomicInt
+import org.mha.utils.AtomicInt
 import org.slf4j.LoggerFactory
 
 /**

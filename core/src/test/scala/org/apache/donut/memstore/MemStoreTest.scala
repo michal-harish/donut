@@ -20,7 +20,7 @@ package org.apache.donut.memstore
 
 import java.nio.ByteBuffer
 
-import org.apache.donut.utils.logmap.ConcurrentLogHashMap
+import org.mha.utils.logmap.ConcurrentLogHashMap
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
