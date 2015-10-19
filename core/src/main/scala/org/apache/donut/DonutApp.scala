@@ -18,13 +18,12 @@ package org.apache.donut
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import java.lang.reflect.Constructor
-import java.net.{NetworkInterface, URL}
+import java.net.NetworkInterface
 import java.util.Properties
-import java.util.concurrent.{Executors, TimeUnit}
 
+import org.apache.donut.metrics.Metrics
 import org.apache.donut.ui.{UI, WebUI}
-import org.apache.yarn1.{YarnClient, YarnContainerRequest, YarnMaster}
+import org.apache.yarn1.{YarnClient, YarnContainerContext, YarnContainerRequest, YarnMaster}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
@@ -71,7 +70,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
           availableAddresses.head.getHostAddress
         }
       }
-      ui.startServer(this, host, prefPort)
+      ui.startServer(host, prefPort)
     }
     ui.serverUrl
   }
@@ -98,54 +97,60 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
    * @param debugOnePartition if 'true' is passed, only one thread for logical partition 0 will be launched
    */
   final def runLocally(debugOnePartition: Int = -1): Unit = {
-    try {
-      numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
-      val trackingUrl = provideTrackingURL("localhost", 8099)
-      log.info("APPLICATION TRACKING URL: " + trackingUrl)
-
-      val executor = Executors.newFixedThreadPool(numPartitions + 1)
-
-      val taskConstructor: Constructor[T] = taskClass.getConstructor(
-        classOf[Properties], classOf[URL], classOf[Int], classOf[Int], classOf[Seq[String]])
-
-      val tasks = (if (debugOnePartition >= 0) {
-        val t0 = taskConstructor.newInstance(config, trackingUrl, new Integer(debugOnePartition), new Integer(numPartitions), topics)
-        executor.submit(t0)
-        Seq(t0)
-      } else (0 to numPartitions - 1).map(lp => {
-        val t = taskConstructor.newInstance(config, trackingUrl, new Integer(lp), new Integer(numPartitions), topics)
-        executor.submit(t)
-        t
-      }))
-
-      executor.shutdown
-
-      while (!executor.isTerminated) {
-        if (executor.awaitTermination(30, TimeUnit.SECONDS)) return
-        println(s"Progress ${getProgress * 100.0}%")
+      config.setProperty("yarn1.client.tracking.url", provideTrackingURL("localhost", 8099).toString)
+      config.put("yarn1.local.mode", "true")
+      if (debugOnePartition >=0) {
+        config.put("debug.partitions", s"${debugOnePartition}")
       }
-
-    } catch {
-      case e: Throwable => {
-        log.error("", e)
-        System.exit(1)
-      }
-    }
-
-    System.exit(0)
+      YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), true)
   }
 
+  private var partitionList: List[Int] = null
+
   /**
-   * Yarn Master Startup hook
+   * Yarn Master or Local Startup hook
    */
   final override protected def onStartUp(originalArgs: Array[String]): Unit = {
+
     numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
-    val taskHeapMemMb = taskOverheadMemMb * 6 / 8
-    val taskDirectMemMb = totalMainMemoryMb / numPartitions + (taskOverheadMemMb - taskHeapMemMb)
-    requestContainerGroup((0 to numPartitions - 1).map(lp => {
-      val args: Array[String] = Array(taskClass.getName, getTrackingURL().toString, lp.toString, numPartitions.toString) ++ topics
-      new YarnContainerRequest(DonutYarnContainer.getClass, args, taskPriority, taskDirectMemMb, taskHeapMemMb, 1)
-    }).toArray)
+
+    ui.setServerUrl(this.getTrackingURL)
+    ui.updateAttributes(
+      Map(
+        "numLogicalPartitions" -> numPartitions,
+        "appClass" -> this.getClass.getSimpleName,
+        "kafkaGroupId" -> config.get("group.id"),
+        "kafkaBrokers" -> kafkaUtils.kafkaBrokers,
+        "topics" -> topics.mkString(","),
+        "masterMemoryMb" -> masterMemoryMb,
+        "masterCores" -> masterCores,
+        "totalMainMemoryMb" -> totalMainMemoryMb,
+        "taskOverheadMemMb" -> taskOverheadMemMb
+      ))
+
+    def requestContainerForPartition(lp: Int) = {
+      val taskHeapMemMb = taskOverheadMemMb * 6 / 8
+      val taskDirectMemMb = totalMainMemoryMb / numPartitions + (taskOverheadMemMb - taskHeapMemMb)
+      val args: Array[String] = Array(ui.serverUrl.toString, lp.toString, numPartitions.toString) ++ topics
+      new YarnContainerRequest(taskClass, args, taskPriority, taskDirectMemMb, taskHeapMemMb, 1)
+    }
+
+    if (config.containsKey("debug.partitions")) {
+      partitionList = config.getProperty("debug.partitions", "0").split(",").toList.map(_.toInt)
+    } else {
+      partitionList = (0 to numPartitions - 1).toList
+    }
+    requestContainerGroup(partitionList.map(requestContainerForPartition).toArray)
+
+  }
+
+  override protected def onContainerLaunched(id: String, spec: YarnContainerContext): Unit = {
+    val partition = spec.args(2).toInt
+    ui.updateMetric(partition,  Metrics.CONTAINER_ID, classOf[metrics.Status], id, spec.getNodeAddress)
+    ui.updateMetric(partition, Metrics.CONTAINER_LOGS, classOf[metrics.Status],
+      s"<a href='${spec.getLogsUrl("stderr")}'>stderr</a>&nbsp;<a href='${spec.getLogsUrl("stdout")}'>stdout</a>")
+    ui.updateMetric(partition, Metrics.CONTAINER_MEMORY, classOf[metrics.Counter], spec.capability.getMemory)
+    ui.updateMetric(partition, Metrics.CONTAINER_CORES, classOf[metrics.Counter], spec.capability.getVirtualCores)
   }
 
   /**
@@ -161,7 +166,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
    * Yarn Master Completion hook
    */
   override protected def onCompletion: Unit = {
-    ui.stopServer
+    if (ui != null) ui.stopServer
   }
 
 

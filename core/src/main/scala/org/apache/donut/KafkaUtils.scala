@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory
 /**
  * Created by mharis on 14/09/15.
  */
-case class KafkaUtils(val config: Properties) {
+class KafkaUtils(val config: Properties) {
 
   type MESSAGE = KeyedMessage[Array[Byte], Array[Byte]]
   private val log = LoggerFactory.getLogger(classOf[DonutApp[_]])

@@ -2,34 +2,29 @@ package org.apache.donut.ui
 
 import java.net.{HttpURLConnection, URLEncoder, URL}
 
-import org.apache.donut.DonutApp
 import org.apache.donut.metrics.Metric
 
 /**
  * Created by mharis on 17/10/15.
  */
-class WebUI(partition: Int, masterUrl: URL) extends UI {
+class WebUI(masterUrl: URL) extends UI {
 
-  def this(masterUrl: URL) = this(-1, masterUrl)
+  def this() = this(null)
 
-  def this() = this(-1, null)
+  if (masterUrl != null) setServerUrl(masterUrl)
 
   @volatile private var server: WebUIServer = null
-
-  private var url: URL = masterUrl
-
-  override def serverUrl: URL = url
 
   override def started: Boolean = server != null
 
   override def getLatestProgress: Float = server match {
     case null => 0f
-    case s => s.getProgress(partition)
+    case s => s.getProgress
   }
 
-  override def startServer(app: DonutApp[_], host: String, port: Int): Boolean = {
-    server = new WebUIServer(app, host, port)
-    server.start()
+  override def startServer(host: String, port: Int): Boolean = {
+    server = new WebUIServerSun(host, port)//new WebUIServerNanoHTTPD(host, port)
+    server.start
     url = new URL("http", host, server.getListeningPort, "/")
     started
   }
@@ -45,7 +40,11 @@ class WebUI(partition: Int, masterUrl: URL) extends UI {
     }
   }
 
-  override def updateMetric(name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Boolean = {
+  def updateAttributes(attr: Map[String, Any]): Boolean = {
+    post("/attribute", attr.map(x => (x._1, x._2.toString)))
+  }
+
+  override def updateMetric(partition: Int, name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Boolean = {
     post("/metrics", Map(
         "p" -> partition.toString,
         "c" -> cls.getCanonicalName,
@@ -54,7 +53,7 @@ class WebUI(partition: Int, masterUrl: URL) extends UI {
         "h" -> hint))
   }
 
-  override def updateError(e: Throwable): Boolean = {
+  override def updateError(partition: Int, e: Throwable): Boolean = {
     post("/errors", Map(
       "p" -> partition.toString,
       "e" -> e.getMessage,

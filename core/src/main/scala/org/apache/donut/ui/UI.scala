@@ -2,7 +2,6 @@ package org.apache.donut.ui
 
 import java.net.URL
 
-import org.apache.donut.DonutApp
 import org.apache.donut.metrics.Metric
 
 /**
@@ -10,15 +9,21 @@ import org.apache.donut.metrics.Metric
  */
 trait UI {
 
-  def updateMetric(name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Boolean
+  protected var url: URL = null
 
-  def updateError(e: Throwable): Boolean
+  final def serverUrl: URL = url
+
+  final def setServerUrl(trackingUrl: URL) = this.url = trackingUrl
+
+  def updateAttributes(attr: Map[String,Any]): Boolean
+
+  def updateMetric(partition: Int, name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Boolean
+
+  def updateError(partition: Int, e: Throwable): Boolean
 
   def getLatestProgress: Float
 
-  def startServer(app: DonutApp[_], host: String, port: Int): Boolean
-
-  def serverUrl: URL
+  def startServer(host: String, port: Int): Boolean
 
   def started: Boolean
 
