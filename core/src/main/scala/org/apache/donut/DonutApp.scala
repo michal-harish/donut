@@ -57,7 +57,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
 
   private val ui: UI = new WebUI //TODO send the ui implementing class to the tasks
 
-  final override protected def getTrackingURL(prefHost: String = null, prefPort: Int = 0): java.net.URL = {
+  final override protected def provideTrackingURL(prefHost: String = null, prefPort: Int = 0): java.net.URL = {
     if (!ui.started) {
       val host = if (prefHost != null) prefHost
       else {
@@ -78,6 +78,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
 
   final def runOnYarn(awaitCompletion: Boolean): Unit = {
     try {
+      config.setProperty("yarn1.client.tracking.url", provideTrackingURL(null, 8099).toString)
       YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), awaitCompletion)
     } catch {
       case e: Throwable => {
@@ -99,7 +100,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
   final def runLocally(debugOnePartition: Int = -1): Unit = {
     try {
       numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
-      val trackingUrl = getTrackingURL("localhost", 8099)
+      val trackingUrl = provideTrackingURL("localhost", 8099)
       log.info("APPLICATION TRACKING URL: " + trackingUrl)
 
       val executor = Executors.newFixedThreadPool(numPartitions + 1)
@@ -139,7 +140,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
    */
   final override protected def onStartUp(originalArgs: Array[String]): Unit = {
     numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
-    val taskHeapMemMb = taskOverheadMemMb * 4 / 5
+    val taskHeapMemMb = taskOverheadMemMb * 6 / 8
     val taskDirectMemMb = totalMainMemoryMb / numPartitions + (taskOverheadMemMb - taskHeapMemMb)
     requestContainerGroup((0 to numPartitions - 1).map(lp => {
       val args: Array[String] = Array(taskClass.getName, getTrackingURL().toString, lp.toString, numPartitions.toString) ++ topics

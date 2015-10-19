@@ -1,88 +1,698 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
+    <meta charset="utf-8"/>
+    <link rel="icon" href="data:image/ico;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QAAAAAAAD5Q7t/AAAACXBIWXMAAABIAAAASABGyWs+AAAACXZwQWcAAAAQAAAAEABcxq3DAAADjklEQVQ4yzWTTWwUZQCG32/mm9md3dmdbncLpfQH2mJp+v9DGgQbYgVDYjTqATVEDeIJEg4eJMaDMR6M8eTFiEkTExL1wMGgFCMpCtIKKUKLpb+EZel2222X7c7szv98nwf0uT/P7SH4j5nVPE4VU3g3Uqm56fgDs77QUyORjnUPaZPxqRQhUy/7T1anEcJo347/NRAAOLu0hV0Spxct4fW1gJyWOe+1iRDRBCIA4Cs+t0zGlyjn53tC/PuLy2J2rMfF0aYkyBcPt9BIiXpODz40Qc8MyEKsTSIw/QAuJ1BFAhAg53Ncd8DWfDbdRvlHlztOXP5y/huQ0fnp8A/ejs9mA3rmsELpgCzgSsnFVKkCIxChUqBDlXEoHgIVRFwyGR44fmYPZW/dNpwbYv3pT/dNuPh8tyTFuiSCG5aPKxs2Srk8nPUsLKOMBy6gy2HsjxAMhBh8P9BWKmbLsTj/jU7q/rDGWHW/ZKGOS5gzbUgewDcyeCb9J4LAQWbvAdTVdKPJygGxarwkxWE6zsEpOXaSJjdKfe1qIDYrLiQoqGNhdFceoWp1DP0r4xA5w4y6iVBzCnOJdjSRODZkhhnFE62KPUQNkQs3wwl0anEohEPRGB6aHk407sLzvR9ADitgJRNfx1qhiVVo4AIeuR7WPQYtCFTqsCCTrri4Z3kYiSnoDHuoS9Tg2tA7eLGWwiUi/i4CCUaxkwJPAoZx3Ydt+UgwtywkJGmdM/A/ygE2fR8qFTEclZGXYzhZDOPtTQk5QvFqVMB2AfhV97BY9iA7TtBIhUl6VJNnC7pjzOli/Bw4DsRDiBAR76siPEJQZByNFEgQ4I7l4/ctF7bjYlCyvLO14jx9pSE69ThtzWULpaFbHsc/FY6IKOA5VcD+mIwECG7rPmwO3Cq7KJZMJO1NvJks50a0+vv06sSl/HstbaNRttH3bT4iF+UULELxc1zDeMFB4AdwPB/gAXzHQrWxhjfcheDI9ubvovUts/TY4EFoybrzQv5CV6pw7dRVg5P7WicKQhdsOQ5qVaAW1xD3NtFsZtBfWMaRjp6fmvf2fpVbnHk6Uy69iFA0llq4/ssnS/cmjv+lM62gF5GpakKLZ2CbkUVSZlBl1Wpt3/fj4AuvfawX1rN7hg49DQCArlegKBFlefbOyOP5u8fTywvPFirGTurZSETD2URq22RtQ+uF7uHDY3bFMGoaWgEA/wJXTqwGMnRz3wAAACZ6VFh0RGVzY3JpcHRpb24AAHjacy5KTSxJTVEozyzJUHD39A0AADedBeKasdl2AAAAWXpUWHRTb2Z0d2FyZQAAeNrzzE1MT/VNTM9MzlYw0zPSs1AwMNU3MNc3NFIINDRTSMvMSbXSLy0u0i/OSCxK1fdEKNc10zPSs9BPyU/Wz8xLSa3QyyjJzQEArU4YrHQVLmsAAAAhelRYdFRodW1iOjpEb2N1bWVudDo6UGFnZXMAAHjaMwQAADIAMgwS4oQAAAAhelRYdFRodW1iOjpJbWFnZTo6aGVpZ2h0AAB42jM3NwIAAUgAoaqeVecAAAAgelRYdFRodW1iOjpJbWFnZTo6V2lkdGgAAHjaM7e0BAABUwCqnbZQAwAAACJ6VFh0VGh1bWI6Ok1pbWV0eXBlAAB42svMTUxP1U/PTAMAEVUDaQ/K+N8AAAAgelRYdFRodW1iOjpNVGltZQAAeNozNDExNTI1NLM0AgALGgIIywTFYAAAAB56VFh0VGh1bWI6OlNpemUAAHjaM9IzTNU2MMpOAgAKVQJRIy6XwwAAABx6VFh0VGh1bWI6OlVSSQAAeNpLy8xJtdLX1wcADJoCaJRAUaoAAAAASUVORK5CYII=">
     <link rel="stylesheet" type="text/css" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"/>
-    <!--<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>-->
-    <!--<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>-->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 </head>
 <body class="container">
-    <div class='row'>
-        <h2>SyncsToGraphStreaming <small>YARN Stream Processor | KAFKA GROUP ID: GraphSyncsStreamingBSP</small></h2>
-    </div>
-    <div class='row'>
-        <div class='progress'>
-            <div class='progress-bar progress-bar-danger progress-bar-striped' role='progressbar' aria-valuenow='21' aria-valuemin='0' aria-valuemax='100' style='width:21%'>
-                21% <i>input streams</i> datasync (bounded)
-            </div>
+<div class='row'>
+    <h2>GraphToHBaseStreaming
+        <small><a title='32 containers and one master using (48 + 0 Gb) of total available 48 Gb'>MEMORY: <b>48
+            Gb</b></a>, <a>TOTAL CORES: <b>33</b></a>, <a
+                title='KAFKA BROKERS: message-01.prod.visualdna.com:9092,message-02.prod.visualdna.com:9092,message-03.prod.visualdna.com:9092'>KAFKA
+            GROUP ID: GraphstreamHBaseLoader</a></small>
+    </h2>
+</div>
+<div class='row'>
+    <div class='progress'>
+        <div class='progress-bar progress-bar-info progress-bar-striped' role='progressbar' aria-valuenow='100'
+             aria-valuemin='0' aria-valuemax='100' style='width:100%'>100% <i>input streams : </i> graphdelta
         </div>
     </div>
-    <h3>Logical Partitions <small>ACTIVE 6 / 6</small></h3>
-    <table class='table table-striped table-condensed'>
-        <thead>
-            <tr>
-                <th>∑</th>
-                <th>78257</th>
-                <th>6795</th>
-                <th>
-                    <div class='progress' style='margin-bottom: 0 !important;'>
-                        <div class='progress-bar progress-bar-striped' role='progressbar' aria-valuenow='21' aria-valuemin='0' aria-valuemax='100' style='width:21%'>21%</div>
-                    </div>
-                </th>
-                <th>6778</th>
-                <th>2</th>
-                <th>13557</th>
-                <th>-</th>
-            </tr>
-            <tr>
-                <td><i>P</i></td>
-                <td>input VDNAUserImport/sec</td>
-                <td>input filter/sec</td>
-                <td>input progress</td>
-                <td>input valid/sec</td>
-                <td>output errors</td>
-                <td>output graphstream/sec</td>
-                <td>container</td>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>0</td>
-                <td>15328</td>
-                <td>1329</td>
-                <td>
-                    <a title='delta input progress..'>
-                        <div class='progress' style='margin-bottom: 0 !important;'>
-                            <div class='progress-bar' role='progressbar' aria-valuenow='23' aria-valuemin='0' aria-valuemax='100' style='width:23%'>23%</div>
-                        </div>
-                    </a>
-                </td>
-                <td>1326</td>
-                <td>0</td>
-                <td>2655</td>
-                <td>
-                    <div>[<em>container_1445053101905_1635_01_000010:&nbsp;<a href='http://bl-hadoop-p06.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1635_01_000010/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a href='http://bl-hadoop-p06.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1635_01_000010/stdout/stdout/?start=-4096'>stdout</a>] </em><br/></div>
-                </td>
-            </tr>
-            <tr>
-                <td>1</td>
-                <td>11073</td>
-                <td>962</td>
-                <td>
-                    <a title='delta input progress..'>
-                        <div class='progress' style='margin-bottom: 0 !important;'>
-                            <div class='progress-bar' role='progressbar' aria-valuenow='19' aria-valuemin='0' aria-valuemax='100' style='width:19%'>19%</div>
-                        </div>
-                    </a>
-                </td>
-                <td>959</td>
-                <td>0</td>
-                <td>1919</td>
-                <td>
-                    <div>[<em>container_1445053101905_1635_01_000008:&nbsp;<a href='http://bl-hadoop-p13.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1635_01_000008/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a href='http://bl-hadoop-p13.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1635_01_000008/stdout/stdout/?start=-4096'>stdout</a>] </em><br/></div>
-                </td>
-            </tr>
-        </tbody>
-    </table>
+</div>
+<h3>Logical Partitions
+    <small>ACTIVE 32 / 32</small>
+</h3>
+<table class='table table-striped table-condensed'>
+    <thead>
+    <tr>
+        <th>∑</th>
+        <th>0</th>
+        <th>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar progress-bar-striped' role='progressbar' aria-valuenow='100' aria-valuemin='0'
+                     aria-valuemax='100' style='width:100%'>100%
+                </div>
+            </div>
+        </th>
+        <th>0</th>
+        <th>0</th>
+        <th>-</th>
+    </tr>
+    <tr>
+        <td><i>P</i></td>
+        <td>input graphdelta/sec</td>
+        <td>input progress</td>
+        <td>output dxp-graph-v6 del/sec</td>
+        <td>output dxp-graph-v6 put/sec</td>
+        <td>container</td>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td>0</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p29.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000033'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p29.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000033/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p29.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000033/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p32.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000032'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p32.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000032/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p32.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000032/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>2</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p21.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000031'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p21.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000031/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p21.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000031/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>3</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p10.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000030'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p10.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000030/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p10.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000030/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p28.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000029'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p28.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000029/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p28.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000029/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>5</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p11.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000028'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p11.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000028/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p11.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000028/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>6</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p12.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000027'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p12.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000027/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p12.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000027/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>7</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p30.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000026'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p30.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000026/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p30.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000026/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>8</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p26.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000025'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p26.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000025/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p26.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000025/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>9</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p14.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000024'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p14.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000024/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p14.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000024/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>10</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p31.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000023'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p31.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000023/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p31.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000023/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>11</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p16.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000022'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p16.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000022/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p16.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000022/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>12</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p01.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000021'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p01.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000021/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p01.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000021/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>13</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p13.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000020'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p13.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000020/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p13.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000020/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>14</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p03.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000019'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p03.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000019/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p03.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000019/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>15</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p22.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000018'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p22.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000018/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p22.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000018/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>16</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p20.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000017'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p20.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000017/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p20.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000017/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>17</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p09.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000016'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p09.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000016/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p09.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000016/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>18</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p23.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000015'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p23.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000015/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p23.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000015/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>19</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p24.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000014'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p24.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000014/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p24.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000014/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>20</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p27.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000013'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p27.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000013/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p27.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000013/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>21</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p02.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000012'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p02.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000012/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p02.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000012/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>22</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p07.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000011'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p07.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000011/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p07.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000011/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>23</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p08.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000010'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p08.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000010/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p08.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000010/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>24</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p04.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000009'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p04.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000009/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p04.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000009/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>25</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p25.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000008'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p25.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000008/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p25.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000008/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>26</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p18.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000007'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p18.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000007/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p18.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000007/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>27</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p17.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000006'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p17.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000006/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p17.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000006/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>28</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p15.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000005'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p15.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000005/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p15.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000005/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>29</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p19.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000004'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p19.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000004/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p19.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000004/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>30</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p05.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000003'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p05.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000003/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p05.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000003/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    <tr>
+        <td>31</td>
+        <td>0</td>
+        <td><a title='delta input progress..'>
+            <div class='progress' style='margin-bottom: 0 !important;'>
+                <div class='progress-bar' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100'
+                     style='width:100%'>100%
+                </div>
+            </div>
+        </a></td>
+        <td>0</td>
+        <td>0</td>
+        <td>
+            <div>
+                <a title='bl-hadoop-p10.prodsec.bl.visualdna.com:23999/container_1445053101905_1942_01_000002'>RUNNING</a>&nbsp;<a
+                    href='http://bl-hadoop-p10.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000002/stderr/stderr/?start=-4096'>stderr</a>&nbsp;<a
+                    href='http://bl-hadoop-p10.prodsec.bl.visualdna.com:23999/node/containerlogs/container_1445053101905_1942_01_000002/stdout/stdout/?start=-4096'>stdout</a><br/>
+            </div>
+        </td>
+    </tr>
+    </tbody>
+</table>
 </body>
 </html>
