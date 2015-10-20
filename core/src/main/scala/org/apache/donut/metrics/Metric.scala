@@ -17,7 +17,7 @@ abstract class Metric {
 
   def put(partition: Int, value: String, hint: String) = data.put(partition, (value, hint))
 
-  def value: String = aggregate(data.values.asScala.map(_._1))
+  def value: String = aggregate(data.values.asScala.filter(_._1 != null).map(_._1))
 
   protected def aggregate(values: Iterable[String]): String
 

@@ -32,8 +32,8 @@ abstract class WebUIServer(val host: String, val port: Int) {
 
   def getProgress: Float = {
     metrics.get(Metrics.INPUT_PROGRESS) match {
-      case metric: Progress if (metric != null) => metric.value.toFloat
-      case _ => 0f
+      case null => 0f
+      case metric: Progress => metric.value.toFloat
     }
   }
 
@@ -146,10 +146,10 @@ abstract class WebUIServer(val host: String, val port: Int) {
       case y if (y.length > 1) => y(0)
       case _ => "_"
     }
-    val tabs = metrics.map(m => getTab(m._1)).toSet
+    val tabs = metrics.filter(_._1.contains(":")).map(m => getTab(m._1)).toSet + "_"
 
     def htmlTabContent(tab: String) = {
-      val filtered = if (tabs.size <=1 ) metrics else metrics.filter(m => getTab(m._1) == tab)
+      val filtered = if (tab == "_") metrics else metrics.filter(m => getTab(m._1) == tab)
       def htmlPartitionTR(partition: Int) = {
         s"<tr><td>${partition}</td>" +
           filtered.map { case (name, metric) => s"<td>${htmlMetric(partition, metric)}</td>" }.mkString
@@ -163,13 +163,13 @@ abstract class WebUIServer(val host: String, val port: Int) {
         s"<tbody>${activePartitions.map(htmlPartitionTR).mkString("\n")}</tbody></table>"
     }
 
-    return if (tabs.size <= 1) {
-      htmlTabContent("*")
+    return if (tabs.size <= 2) {
+      htmlTabContent("_")
     } else {
       "<ul class=\"nav nav-tabs\">" +
-        (tabs.map(tab => s"<li><a data-toggle='tab' href='#${tab.replace(" ", "_")}'>${tab}</a></li>")).mkString("\n") +
+        (tabs.map(tab => s"<li class='${if (tab == "_") "active" else ""}'><a data-toggle='tab' href='#${tab.replace(" ", "_")}'>${tab}</a></li>")).mkString("\n") +
         "</ul><div class=\"tab-content\">" +
-        (tabs.map(tab => s"<div id='${tab.replace(" ", "_")}' class='tab-pane fade in active'><h3>${tab}</h3>${htmlTabContent(tab)}</div>")).mkString("\n") +
+        (tabs.map(tab => s"<div id='${tab.replace(" ", "_")}' class='tab-pane fade in ${if (tab == "_") "active" else ""}'><h3>${tab}</h3>${htmlTabContent(tab)}</div>")).mkString("\n") +
         "</div>"
     }
   }

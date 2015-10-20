@@ -23,7 +23,7 @@ class WebUI(masterUrl: URL) extends UI {
   }
 
   override def startServer(host: String, port: Int): Boolean = {
-    server = new WebUIServerSun(host, port)//new WebUIServerNanoHTTPD(host, port)
+    server = new WebUIServerSun(host, port)
     server.start
     url = new URL("http", host, server.getListeningPort, "/")
     started
@@ -73,6 +73,10 @@ class WebUI(masterUrl: URL) extends UI {
         c.setRequestMethod("POST")
         c.setRequestProperty("User-Agent", "DonutApp")
         c.setRequestProperty("Accept-Language", "en-US,en;q=0.5")
+        c.setRequestProperty("Content-Length", "0")
+//        c.setDoOutput(true)
+//        c.getOutputStream.flush
+//        c.getOutputStream.close
         if (c.getResponseCode == 202) {
           return true
         } else {

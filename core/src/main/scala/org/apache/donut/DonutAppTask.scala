@@ -125,21 +125,33 @@ abstract class DonutAppTask(val config: Properties, args: Array[String]) extends
       executor = Executors.newFixedThreadPool(fetchers.size)
       fetchers.foreach(fetcher => executor.submit(fetcher))
       executor.shutdown
+      var prevProgress: Float = 0f
       while (!executor.isTerminated) {
-        val progressHint = if (!bootSequenceCompleted) "state bootstrap progress.." else "delta input progress.."
+
+        //update progress indicator
         val progress = fetchers.filter(_.isInstanceOf[FetcherBootstrap] ^ bootSequenceCompleted).map(f => {
           val (start, end) = f.getProgressRange
           ((f.getNextFetchOffset.toDouble - start) / (end - start)).toFloat
         }).toSeq
-        ui.updateMetric(partition, Metrics.INPUT_PROGRESS, classOf[Progress], progress.sum / progress.size, progressHint)
+        if (progress.size > 0) {
+          val newProgress = (progress.sum / progress.size)
+          if (newProgress != prevProgress) {
+            val hint = if (!bootSequenceCompleted) "state bootstrap progress.." else "delta input progress.."
+            ui.updateMetric(partition, Metrics.INPUT_PROGRESS, classOf[Progress], newProgress, hint)
+            prevProgress = newProgress
+          }
+        }
 
+        //hand the control thread to the application for a moment
+        awaitingTermination
+
+        //sleep a bit and again
         fetcherMonitor.synchronized {
           fetcherMonitor.wait(TimeUnit.SECONDS.toMillis(30))
         }
         if (fetcherMonitor.get != null) {
           throw fetcherMonitor.get
         }
-        awaitingTermination
       }
     } catch {
       case e: Throwable => {
