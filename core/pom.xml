@@ -14,23 +14,6 @@
     </parent>
 
     <dependencies>
-        <!-- mapdb for localstorage -->
-        <!--<dependency>-->
-            <!--<groupId>org.mapdb</groupId>-->
-            <!--<artifactId>mapdb</artifactId>-->
-            <!--<version>2.0-beta7</version>-->
-            <!--<scope>compile</scope>-->
-        <!--</dependency>-->
-
-        <!-- ui components -->
-        <!--<dependency>-->
-            <!--<groupId>com.nanohttpd</groupId>-->
-            <!--<artifactId>nanohttpd</artifactId>-->
-        <!--</dependency>-->
-        <!--<dependency>-->
-            <!--<groupId>com.nanohttpd</groupId>-->
-            <!--<artifactId>nanohttpd-webserver</artifactId>-->
-        <!--</dependency>-->
         <!-- lz4 -->
         <dependency>
             <groupId>net.jpountz.lz4</groupId>

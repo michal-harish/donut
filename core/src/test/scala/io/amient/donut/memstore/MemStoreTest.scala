@@ -36,13 +36,6 @@ class MemStoreTest extends FlatSpec with Matchers {
     st.size should be(5)
   }
 
-//  behavior of "MemStoreMemDb"
-//  it should "behave as expected" in {
-//    val st = new MemStoreMemDb(1024)
-//    test(st)
-//    st.size should be(5)
-//  }
-
   def test(storage: MemStore) = {
 
     storage.put("9000", "A")

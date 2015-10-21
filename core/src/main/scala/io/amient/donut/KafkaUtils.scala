@@ -136,7 +136,7 @@ class KafkaUtils(val config: Properties) {
    */
   def getGroupProgress(consumerGroupId: String, topics: List[String]): (Float, Float, Float) = {
     val progress = getPartitionMap(topics).flatMap { case (topic, numPartitions) => {
-      (0 to numPartitions - 1) .map( p => {
+      (0 to numPartitions - 1).map(p => {
         val consumer = new PartitionConsumer(topic, p, consumerGroupId)
         try {
           val (earliest, consumed, latest) = (consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
@@ -147,7 +147,7 @@ class KafkaUtils(val config: Properties) {
       })
     }
     }
-    if (progress.size == 0) (0,0,0) else (progress.min, progress.sum / progress.size, progress.max)
+    if (progress.size == 0) (0, 0, 0) else (progress.min, progress.sum / progress.size, progress.max)
   }
 
   protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long, failOnError: Boolean): Unit = {
