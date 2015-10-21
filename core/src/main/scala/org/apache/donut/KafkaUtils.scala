@@ -104,6 +104,10 @@ class KafkaUtils(val config: Properties) {
   }
 
   /**
+   * getGroupOffset - compute an average progress between 0.0 and 1.0 for all partitions in the
+   * listed topics in a given consumer group. This is quite an expensive operation which
+   * queries kafka brokers for metadata so should not be called too frequently.
+   *
    * @return next offset to be consumed in the given partition
    */
   def getGroupOffset(groupId: String, topicAndPartition: TopicAndPartition): Long = {
@@ -124,6 +128,21 @@ class KafkaUtils(val config: Properties) {
     }
   }
 
+  def getGroupProgress(consumerGroupId: String, topics: List[String]): Float = {
+    val progress = getPartitionMap(topics).flatMap { case (topic, numPartitions) => {
+      (0 to numPartitions - 1) .map( p => {
+        val consumer = new PartitionConsumer(topic, p, consumerGroupId)
+        try {
+          val (earliest, consumed, latest) = (consumer.getEarliestOffset, consumer.getOffset, consumer.getLatestOffset)
+          math.min(1f, math.max(0f, (consumed - earliest).toFloat / (latest - earliest).toFloat))
+        } finally {
+          consumer.close
+        }
+      })
+    }
+    }
+    if (progress.size == 0) 0f else progress.sum / progress.size
+  }
 
   protected def commitGroupOffset(groupId: String, topicAndPartition: TopicAndPartition, offset: Long, failOnError: Boolean): Unit = {
     var numErrors = 0
