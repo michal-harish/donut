@@ -58,16 +58,17 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
 
   final override protected def provideTrackingURL(prefHost: String = null, prefPort: Int = 0): java.net.URL = {
     if (!ui.started) {
-      val host = if (prefHost != null) prefHost
-      else {
+      val host = if (prefHost != null) prefHost else {
         //TODO maybe the selection of best hostname should be delegated to Yarn1
         val addresses = NetworkInterface.getNetworkInterfaces.asScala.flatMap(_.getInterfaceAddresses.asScala).map(_.getAddress)
         val availableAddresses = addresses.filter(_.isSiteLocalAddress).toList
         val namedHosts = availableAddresses.filter(a => a.getHostAddress != a.getCanonicalHostName)
-        if (namedHosts.size > 0) {
+        if (!namedHosts.isEmpty) {
           namedHosts.head.getCanonicalHostName
-        } else {
+        } else if (!availableAddresses.isEmpty) {
           availableAddresses.head.getHostAddress
+        } else {
+          "localhost"
         }
       }
       ui.startServer(host, prefPort)
@@ -77,7 +78,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
 
   final def runOnYarn(awaitCompletion: Boolean): Unit = {
     try {
-      config.setProperty("yarn1.client.tracking.url", provideTrackingURL(null, 8099).toString)
+      //config.setProperty("yarn1.client.tracking.url", provideTrackingURL(null, 8099).toString)
       YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), awaitCompletion)
     } catch {
       case e: Throwable => {
@@ -114,7 +115,6 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
 
     numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
 
-    ui.setServerUrl(this.getTrackingURL)
     ui.updateAttributes(
       Map(
         "numLogicalPartitions" -> numPartitions,
@@ -145,7 +145,7 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
   }
 
   override protected def onContainerLaunched(id: String, spec: YarnContainerContext): Unit = {
-    val partition = spec.args(2).toInt
+    val partition = spec.args(2).toInt // FIXME this is a wrong association
     ui.updateMetric(partition,  Metrics.CONTAINER_ID, classOf[metrics.Status], id, spec.getNodeAddress)
     ui.updateMetric(partition, Metrics.CONTAINER_LOGS, classOf[metrics.Status],
       s"<a href='${spec.getLogsUrl("stderr")}'>stderr</a>&nbsp;<a href='${spec.getLogsUrl("stdout")}'>stdout</a>")
@@ -160,6 +160,11 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
    */
   final protected override def getProgress: Float = {
     math.min(1f, math.max(0f, ui.getLatestProgress))
+  }
+
+  override protected def onContainerCompleted(id: String, spec: YarnContainerContext, exitStatus: Int): Unit = {
+    val partition = spec.args(2).toInt // FIXME this is a wrong association
+    ui.updateMetric(partition, Metrics.LAST_EXIT_STATUS, classOf[metrics.Status], exitStatus, id)
   }
 
   /**

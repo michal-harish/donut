@@ -43,7 +43,6 @@ abstract class WebUIServer(val host: String, val port: Int) {
         case "" | "/" => (200, "text/html", serveMain())
         case "/attribute" if (method == "POST") => handlePostAttributes(params)
         case "/metrics" if (method == "POST") => handlePostMetrics(params)
-        case "/errors" if (method == "POST") => handlePostErrors(params)
         case uri => (404, "text/html", s"<em>Not Found<em><pre>${uri}</pre>")
       }
     } catch {
@@ -68,16 +67,6 @@ abstract class WebUIServer(val host: String, val port: Int) {
       case "taskOverheadMemMb" => taskOverheadMemMb = value.toLong
     }
     }
-    (202, "text/plain", "")
-  }
-
-  private def handlePostErrors(params: Map[String, String]): (Int, String, String) = {
-    val partition = params("p").toInt
-    val message: String = params("e")
-    val trace: String = params("t")
-    if (!metrics.containsKey(Metrics.LAST_ERROR)) metrics.put(Metrics.LAST_ERROR, new Status)
-    val metric: Metric = metrics.get(Metrics.LAST_ERROR)
-    metric.put(partition, metric.value(partition) + s"${message}<br/><pre>\n${trace}</pre>", "")
     (202, "text/plain", "")
   }
 
@@ -119,23 +108,23 @@ abstract class WebUIServer(val host: String, val port: Int) {
     val style = if (p >= 99) "info" else if (p > 90) "success" else if (p > 30) "warning" else "danger"
 
     def htmlMemory: String = {
-      if (metrics.containsKey("container memory")) {
-        val containersMemory = metrics.get("container memory").value.toInt
+      if (metrics.containsKey(Metrics.CONTAINER_MEMORY)) {
+        val containersMemory = metrics.get(Metrics.CONTAINER_MEMORY).value.toInt
         val usedMemory = containersMemory + masterMemoryMb
-        val totalCores = metrics.get("container cores").value.toInt + masterCores
+        val totalCores = metrics.get(Metrics.CONTAINER_CORES).value.toInt + masterCores
         val maxMemory = totalMainMemoryMb + taskOverheadMemMb * numLogicalPartitions + masterMemoryMb
         val memoryDetails = s"total memory utilised (${containersMemory / 1024} + ${masterMemoryMb / 1024} Gb) of total allocated ${maxMemory / 1024} Gb"
-        s"<a title='${memoryDetails}'>MEMORY: <b>${usedMemory / 1024} Gb</b></a>, <a>TOTAL CORES: <b>${totalCores}</b></a>"
+        s"<a title='${memoryDetails}'>MEMORY: <b>${usedMemory / 1024} Gb</b></a>, <a>TOTAL CORES: <b>${totalCores}</b></a>, "
       } else {
         ""
       }
     }
 
     return s"<div class='row'>" +
-      s"<h2>${appClass} <small>${htmlMemory}<a title='KAFKA BROKERS: ${kafkaBrokers}'>KAFKA GROUP ID: ${kafkaGroupId}</a></small></h2></div>" +
+      s"<h2>${appClass} <small>${htmlMemory}<a title='KAFKA BROKERS: ${kafkaBrokers}'>KAFKA GROUP ID: <b>${kafkaGroupId}</b></a></small></h2></div>" +
       s"<div class='row'><div class='progress'>" +
       s"<div class='progress-bar progress-bar-${style} progress-bar-striped' role='progressbar' aria-valuenow='${p}' aria-valuemin='0' aria-valuemax='100' style='width:${p}%'>" +
-      s"${p}% <i>input streams: </i> ${topics.mkString(",;&nbsp;")}" +
+      s"${p}% <i>input streams: </i> ${topics.mkString(",&nbsp;")}" +
       s"</div></div></div>"
   }
 
@@ -149,27 +138,26 @@ abstract class WebUIServer(val host: String, val port: Int) {
     val tabs = metrics.filter(_._1.contains(":")).map(m => getTab(m._1)).toSet + "_"
 
     def htmlTabContent(tab: String) = {
-      val filtered = if (tab == "_") metrics else metrics.filter(m => getTab(m._1) == tab)
+      val filtered = metrics.filter(m => getTab(m._1) == tab).toSeq.sortWith((a,b) => a._1 < b._1)
       def htmlPartitionTR(partition: Int) = {
         s"<tr><td>${partition}</td>" +
           filtered.map { case (name, metric) => s"<td>${htmlMetric(partition, metric)}</td>" }.mkString
       }
       s"<table class='table table-striped table-condensed'>" +
         s"<thead>" +
-        s"<tr><th>∑</th>" + filtered.map { case (name, metric) => s"<th>${htmlMetric(-1, metric)}</th>" }.mkString +
-        "<th>-</th></tr>" +
-        s"<tr><td><i>P</i></td>${filtered.map(x => s"<td>${x._1}</td>").mkString}</tr>" +
+        s"<tr><th>∑</th>" + filtered.map { case (name, metric) => s"<th>${htmlMetric(-1, metric)}</th>" }.mkString + "</tr>" +
+        s"<tr><td><i>P</i></td>${filtered.map(x => s"<td>${x._1.replace(":", " ")}</td>").mkString}</tr>" +
         s"</thead>" +
         s"<tbody>${activePartitions.map(htmlPartitionTR).mkString("\n")}</tbody></table>"
     }
 
-    return if (tabs.size <= 2) {
+    return if (tabs.size <= 1) {
       htmlTabContent("_")
     } else {
       "<ul class=\"nav nav-tabs\">" +
         (tabs.map(tab => s"<li class='${if (tab == "_") "active" else ""}'><a data-toggle='tab' href='#${tab.replace(" ", "_")}'>${tab}</a></li>")).mkString("\n") +
         "</ul><div class=\"tab-content\">" +
-        (tabs.map(tab => s"<div id='${tab.replace(" ", "_")}' class='tab-pane fade in ${if (tab == "_") "active" else ""}'><h3>${tab}</h3>${htmlTabContent(tab)}</div>")).mkString("\n") +
+        (tabs.map(tab => s"<div id='${tab.replace(" ", "_")}' class='tab-pane fade in ${if (tab == "_") "active" else ""}'>${htmlTabContent(tab)}</div>")).mkString("\n") +
         "</div>"
     }
   }

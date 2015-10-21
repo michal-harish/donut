@@ -2,7 +2,7 @@ package org.apache.donut.ui
 
 import java.net.{HttpURLConnection, URLEncoder, URL}
 
-import org.apache.donut.metrics.Metric
+import org.apache.donut.metrics.{Status, Metrics, Metric}
 
 /**
  * Created by mharis on 17/10/15.
@@ -54,10 +54,12 @@ class WebUI(masterUrl: URL) extends UI {
   }
 
   override def updateError(partition: Int, e: Throwable): Boolean = {
-    post("/errors", Map(
+    post("/metrics", Map(
       "p" -> partition.toString,
-      "e" -> e.getMessage,
-      "t" -> e.getStackTraceString
+      "c" -> classOf[Status].toString,
+      "n" -> Metrics.LAST_ERROR,
+      "v" -> e.getMessage,
+      "h" -> e.getStackTraceString
     ))
   }
 
