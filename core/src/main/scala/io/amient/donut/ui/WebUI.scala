@@ -64,16 +64,12 @@ class WebUI(masterUrl: URL) extends UI {
     while (numRetries < 5) try {
       val postUrl = new URL(url, uri + "?" +
         params.map { case (k, v) => s"${k}=${URLEncoder.encode(v, "UTF-8")}" }.mkString("&"))
-      //log.debug(s"POST ${url.toString}")
       val c = postUrl.openConnection.asInstanceOf[HttpURLConnection]
       try {
         c.setRequestMethod("POST")
         c.setRequestProperty("User-Agent", "DonutApp")
         c.setRequestProperty("Accept-Language", "en-US,en;q=0.5")
         c.setRequestProperty("Content-Length", "0")
-//        c.setDoOutput(true)
-//        c.getOutputStream.flush
-//        c.getOutputStream.close
         if (c.getResponseCode == 202) {
           return true
         } else {
