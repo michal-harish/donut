@@ -2,7 +2,7 @@ package io.amient.donut.ui
 
 import java.util.concurrent.ConcurrentSkipListMap
 
-import io.amient.donut.metrics.{Metric, Progress, Metrics}
+import io.amient.donut.metrics._
 
 import scala.collection.JavaConverters._
 

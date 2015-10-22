@@ -270,7 +270,7 @@ class KafkaUtils(val config: Properties) {
   }
 
   def compactAsyncProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)(implicit p: Manifest[P]) = {
-    new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
+    new Producer[Array[Byte], Array[Byte]](new ProducerConfig(new java.util.Properties {
       put("metadata.broker.list", config.get("kafka.brokers"))
       put("request.required.acks", numAcks.toString)
       put("serializer.class", classOf[KafkaByteBufferEncoder].getName)

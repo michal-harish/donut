@@ -10,6 +10,6 @@ object Metrics {
   val CONTAINER_CORES = "container:cores"
   val CONTAINER_ID = "container:id"
   val CONTAINER_LOGS = "container:logs"
-  val LAST_ERROR = "last-error"
-  val LAST_EXIT_STATUS = "last-exit"
+  val LAST_ERROR = "container:last-error"
+  val LAST_EXIT_STATUS = "container:last-exit-status"
 }
