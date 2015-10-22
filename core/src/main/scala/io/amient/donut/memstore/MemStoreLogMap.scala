@@ -9,6 +9,8 @@ import io.amient.utils.logmap.ConcurrentLogHashMap
  */
 class MemStoreLogMap(val map: ConcurrentLogHashMap) extends MemStore {
 
+  override def stats(details: Boolean): Seq[String] = map.stats(details)
+
   override def size: Long = map.size
 
   override def sizeInBytes: Long = map.totalSizeInBytes
@@ -29,7 +31,6 @@ class MemStoreLogMap(val map: ConcurrentLogHashMap) extends MemStore {
 
   override def put(key: ByteBuffer, value: ByteBuffer): Unit = map.put(key, value)
 
-  override def iterator: Iterator[(ByteBuffer, ByteBuffer)] = map.iterator[ByteBuffer](b => b)
+  override def map[X](f: (ByteBuffer, ByteBuffer) => X): Iterator[X] = map.map(f)
 
-  override def stats(details: Boolean): Seq[String] = map.stats(details)
 }

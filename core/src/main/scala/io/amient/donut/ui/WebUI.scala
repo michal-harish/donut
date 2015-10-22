@@ -44,10 +44,6 @@ class WebUI(masterUrl: URL) extends UI {
     post("/attribute", attr.map(x => (x._1, x._2.toString)))
   }
 
-  override def updateError(partition: Int, e: Throwable): Boolean = {
-    updateMetric(partition, Metrics.LAST_ERROR, classOf[Status], e.getMessage, e.getStackTraceString)
-  }
-
   override def updateMetric(partition: Int, name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Boolean = {
     post("/metrics", Map(
         "p" -> partition.toString,

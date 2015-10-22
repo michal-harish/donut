@@ -2,7 +2,7 @@ package io.amient.donut.ui
 
 import java.net.URL
 
-import io.amient.donut.metrics.Metric
+import io.amient.donut.metrics.{Status, Metrics, Metric}
 
 /**
  * Created by mharis on 17/10/15.
@@ -17,9 +17,15 @@ trait UI {
 
   def updateAttributes(attr: Map[String,Any]): Boolean
 
-  def updateMetric(partition: Int, name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Boolean
+  final def updateError(partition: Int, e: Throwable): Boolean = {
+    updateStatus(partition, Metrics.LAST_ERROR, e.getMessage, e.getStackTraceString)
+  }
 
-  def updateError(partition: Int, e: Throwable): Boolean
+  final def updateStatus(partition: Int, name: String, value: String, hint: String = ""): Boolean = {
+    updateMetric(partition, name, classOf[Status], value, hint)
+  }
+
+  def updateMetric(partition: Int, name: String, cls: Class[_ <: Metric], value: Any, hint: String = ""): Boolean
 
   def getLatestProgress: Float
 

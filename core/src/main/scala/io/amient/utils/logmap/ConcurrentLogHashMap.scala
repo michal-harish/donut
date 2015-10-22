@@ -56,11 +56,7 @@ class ConcurrentLogHashMap(
                             val compressMinBlockSize: Int,
                             val indexLoadFactor: Double = 0.7) {
 
-  //TODO def iterator[X] returns unsafe iterator as it unlocks the reader right after the instantiation so we need
-  // to implement the underlying hashtable iterators with logical offset instead of hashPos and validate in the index
-  // - also the default iterator is dangerous in another respect - the ByteBuffer pointing to the value doesn't use
-  // any of the read locks so it should be removed and only expose the generic iterator.
-  // This needs to work safely before we expose the iterator to an external api for RDDs etc.
+  //TODO collect statistics about size, capacity and load atomically rather than with iterators
 
   //TODO design the compression scheme and trigger followed by a merge of segments with joint load factor =< 1.0
   // OPTION A: If a block is being moved (by get-touch) from a compressed group it will also remain in the
@@ -106,7 +102,13 @@ class ConcurrentLogHashMap(
   def size: Int = {
     reader.lock
     try {
-      return segments.asScala.map(_.size).sum
+      var sum = 0
+      var i = segmentIndex.size
+      while (i > 0) {
+        i -= 1
+        sum += segments.get(segmentIndex.get(i)).size
+      }
+      return sum
     } finally {
       reader.unlock
     }
@@ -115,8 +117,16 @@ class ConcurrentLogHashMap(
   def compressRatio: Double = {
     reader.lock
     try {
-      return segments.asScala.map(_.compressRatio).toSeq match {
-        case r => if (r.size == 0) 0 else (r.sum / r.size)
+      if (segments.size == 0) {
+        return 0
+      } else {
+        var sum = 0.0
+        var i = segments.size
+        while (i > 0) {
+          i -= 1
+          sum += segments.get(segmentIndex.get(i)).compressRatio
+        }
+        return sum / segments.size
       }
     } finally {
       reader.unlock
@@ -126,7 +136,13 @@ class ConcurrentLogHashMap(
   def capacityInBytes: Long = {
     reader.lock
     try {
-      return segments.asScala.map(segment => segment.totalSizeInBytes.toLong).sum + index.sizeInBytes
+      var i = segmentIndex.size
+      var sum = 0L
+      while (i > 0) {
+        i -= 1
+        sum += segments.get(segmentIndex.get(i)).totalSizeInBytes.toLong
+      }
+      return sum + index.sizeInBytes
     } finally {
       reader.unlock
     }
@@ -135,7 +151,13 @@ class ConcurrentLogHashMap(
   def totalSizeInBytes: Long = {
     reader.lock
     try {
-      return segmentIndex.asScala.map(s => segments.get(s).totalSizeInBytes.toLong).sum + index.sizeInBytes
+      var sum = 0L
+      var i = segmentIndex.size
+      while (i > 0) {
+        i -= 1
+        sum += segments.get(segmentIndex.get(i)).totalSizeInBytes.toLong
+      }
+      return sum + index.sizeInBytes
     } finally {
       reader.unlock
     }
@@ -153,23 +175,45 @@ class ConcurrentLogHashMap(
   }
 
   /**
-   * generic iterator which takes a mapper function to convert the value ByteBuffer
-   * - the ByteBuffer key returned by .next of this iterator cannot be stored by reference
-   * as the iterator may reuse the bytebuffer or the underlying memory can change after the it is consumed.
-   * @param mapper
+   * safe iterator
+   * @param f function to apply to each key-value bytebuffer pair
+   */
+  def foreach[X](f: (ByteBuffer, ByteBuffer) => X): Unit = {
+    val it = index.iterator
+    while (it.hasNext) {
+      reader.lock
+      try {
+        val (key: ByteBuffer, p: COORD) = it.next
+        val value: ByteBuffer = getBlock(p, (b) => b)
+        f(key, value)
+      } finally {
+        reader.unlock
+      }
+    }
+  }
+
+  /**
+   * safe generic iterator which takes a mapper function to convert the key-value ByteBuffer pair
+   * @param f function to apply to each key-value bytebuffer pair
    * @tparam X
    * @return
    */
-  def iterator[X](mapper: (ByteBuffer) => X): Iterator[(ByteBuffer, X)] = {
+  def map[X](f: (ByteBuffer, ByteBuffer) => X): Iterator[X] = {
     reader.lock
     try {
       val it = index.iterator
-      new Iterator[(ByteBuffer, X)] {
+      new Iterator[X] {
         override def hasNext: Boolean = it.hasNext
 
-        override def next(): (ByteBuffer, X) = {
-          val (key: ByteBuffer, p: COORD) = it.next
-          (key, getBlock(p, mapper))
+        override def next(): X = {
+          reader.lock
+          try {
+            val (key: ByteBuffer, p: COORD) = it.next
+            val value: ByteBuffer = getBlock(p, (b) => b)
+            f(key, value)
+          } finally {
+            reader.unlock
+          }
         }
       }
     } finally {
@@ -386,7 +430,7 @@ class ConcurrentLogHashMap(
             try {
               onEvictEntry(key)
             } catch {
-              case e:Throwable => log.warn("onEvictEntry failed", e)
+              case e: Throwable => log.warn("onEvictEntry failed", e)
             }
             null
           }
@@ -396,7 +440,7 @@ class ConcurrentLogHashMap(
     }
   }
 
-  def stats(details: Boolean): Seq[String]= {
+  def stats(details: Boolean): Seq[String] = {
     reader.lock
     try {
       Seq((s"LOGHASHMAP(${currentSegment}/${numSegments}): index.size = ${index.size} seg.entires = ${size} " +
@@ -405,12 +449,12 @@ class ConcurrentLogHashMap(
         s"(of that index: ${index.sizeInBytes / 1024 / 1024} Mb with load factor ${index.load}})" +
         s", compression = ${compressRatio} ")) ++
         (if (details) {
-        segmentIndex.asScala.reverse.map(s => segments.get(s).stats(s)) ++
-        segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment))
-          .map(s => s.stats(-1))
-      } else {
-        Seq()
-      })
+          segmentIndex.asScala.reverse.map(s => segments.get(s).stats(s)) ++
+            segments.asScala.filter(segment => !segmentIndex.asScala.exists(i => segments.get(i) == segment))
+              .map(s => s.stats(-1))
+        } else {
+          Seq()
+        })
     } finally {
       reader.unlock
     }
@@ -424,21 +468,21 @@ class ConcurrentLogHashMap(
   def onEvictEntry(key: ByteBuffer) = {}
 
 
-//  def applyCompression(fraction: Double): Unit = {
-//    val sizeThreshold = (maxSizeInBytes * (1.0 - fraction)).toInt
-//
-//    reader.lock
-//    try {
-//      var cumulativeSize = 0
-//      segmentIndex.asScala.map(segments.get(_)).foreach(segment => {
-//        cumulativeSize += segment.usedBytes
-//        if (cumulativeSize > sizeThreshold) {
-////          segment.compress
-//        }
-//      })
-//    } finally {
-//      reader.unlock
-//    }
-//  }
+  //  def applyCompression(fraction: Double): Unit = {
+  //    val sizeThreshold = (maxSizeInBytes * (1.0 - fraction)).toInt
+  //
+  //    reader.lock
+  //    try {
+  //      var cumulativeSize = 0
+  //      segmentIndex.asScala.map(segments.get(_)).foreach(segment => {
+  //        cumulativeSize += segment.usedBytes
+  //        if (cumulativeSize > sizeThreshold) {
+  ////          segment.compress
+  //        }
+  //      })
+  //    } finally {
+  //      reader.unlock
+  //    }
+  //  }
 
 }

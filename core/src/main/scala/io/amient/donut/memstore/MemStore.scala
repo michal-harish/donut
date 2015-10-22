@@ -18,13 +18,17 @@
 
 package io.amient.donut.memstore
 
+import java.io.DataInputStream
+import java.net.Socket
 import java.nio.ByteBuffer
 
 /**
  * All implementation of the MemStore must allow concurrent writes, support nulls values and honour expiration
  * limits they expose, at minimum the size of the store in megabytes.
  */
-abstract class MemStore {
+trait MemStore {
+
+  def stats(details: Boolean): Seq[String]
 
   def size: Long
 
@@ -36,17 +40,15 @@ abstract class MemStore {
 
   final def get(key: ByteBuffer): Option[ByteBuffer] = get(key, b => b)
 
-  def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X) : Option[X]
+  def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X): Option[X]
 
   def put(key: ByteBuffer, value: ByteBuffer): Unit
 
-  /**
-   * default iterator - both key and value ByteBuffers given by .next on this iterator
-   * may be reused by the underlying implementations so they should not be stored by reference.
-   * @return
-   */
-  def iterator: Iterator[(ByteBuffer, ByteBuffer)]
+  def map[X](f: (ByteBuffer, ByteBuffer) => X): Iterator[X]
 
-  def stats(details: Boolean): Seq[String]
+  final def foreach(f: (ByteBuffer, ByteBuffer) => Unit) = {
+    val it = map(f)
+    while (it.hasNext) it.next
+  }
 
 }

@@ -21,8 +21,6 @@ package io.amient.utils.logmap
 import java.nio.ByteBuffer
 import java.util
 
-import scala.collection.JavaConverters._
-
 /**
  * Created by mharis on 04/10/15.
  *
@@ -39,9 +37,25 @@ class VarHashTable(val initialCapacityKb: Int, private val loadFactor: Double = 
 
   val cube = new util.HashMap[Int, GrowableHashTable]
 
-  def size: Long = cube.values.asScala.map(_.size).sum
+  def size: Long = {
+    var sum = 0L
+    val it = cube.values.iterator
+    while (it.hasNext) {
+      val hashTable = it.next
+      if (hashTable != null) sum += hashTable.size
+    }
+    return sum
+  }
 
-  def sizeInBytes: Long = cube.values.asScala.map(_.sizeInBytes).sum
+  def sizeInBytes: Long = {
+    var sum = 0L
+    val it = cube.values.iterator
+    while (it.hasNext) {
+      val hashTable = it.next
+      if (hashTable != null) sum += hashTable.sizeInBytes
+    }
+    return sum
+  }
 
   def put(key: ByteBuffer, value: VAL) = hashTable(key, create = true).put(key, value)
 
@@ -64,7 +78,15 @@ class VarHashTable(val initialCapacityKb: Int, private val loadFactor: Double = 
    * actual load factor
    * @return value between 0 and 1.0 representing a fraction of allocated memory that is occupied by index entries
    */
-  def load: Double = cube.values.asScala.map(_.load).sum / cube.size
+  def load: Double = {
+    var sum = 0.0
+    val it = cube.values.iterator
+    while (it.hasNext) {
+      val hashTable = it.next
+      if (hashTable != null) sum += hashTable.load
+    }
+    return sum / cube.size
+  }
 
   /**
    * bytesToGrow is used for pre-emptying memory allocation for precise implementation of memory limits
@@ -92,7 +114,11 @@ class VarHashTable(val initialCapacityKb: Int, private val loadFactor: Double = 
    *          are marked as removed
    */
   def update(f: (ByteBuffer, VAL) => VAL): Unit = {
-    cube.values.asScala.foreach(hashTable => hashTable.update(f))
+    val it = cube.values.iterator
+    while (it.hasNext) {
+      val hashTable = it.next
+      if (hashTable != null) hashTable.update(f)
+    }
   }
 
   /**

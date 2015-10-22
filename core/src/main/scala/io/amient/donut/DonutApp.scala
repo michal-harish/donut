@@ -18,14 +18,14 @@ package io.amient.donut
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import java.net.NetworkInterface
 import java.util.Properties
+
 import io.amient.donut.metrics.Metrics
-import io.amient.donut.ui.{WebUI, UI}
-import io.amient.yarn1.{YarnContainerContext, YarnContainerRequest, YarnMaster, YarnClient}
+import io.amient.donut.ui.{UI, WebUI}
+import io.amient.utils.AddressUtils
+import io.amient.yarn1.{YarnClient, YarnContainerContext, YarnContainerRequest, YarnMaster}
 import org.slf4j.LoggerFactory
 
-import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 /**
@@ -51,25 +51,12 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
   type PARTITION_INFO = (String, Int, Long, Long, Long)
 
   private var numPartitions = -1
-  private var lastOffsets: (Long, Seq[PARTITION_INFO]) = (-1, Seq())
 
   private val ui: UI = new WebUI //TODO send the ui implementing class to the tasks
 
   final override protected def provideTrackingURL(prefHost: String = null, prefPort: Int = 0): java.net.URL = {
     if (!ui.started) {
-      val host = if (prefHost != null) prefHost else {
-        //TODO maybe the selection of best hostname should be delegated to Yarn1
-        val addresses = NetworkInterface.getNetworkInterfaces.asScala.flatMap(_.getInterfaceAddresses.asScala).map(_.getAddress)
-        val availableAddresses = addresses.filter(_.isSiteLocalAddress).toList
-        val namedHosts = availableAddresses.filter(a => a.getHostAddress != a.getCanonicalHostName)
-        if (!namedHosts.isEmpty) {
-          namedHosts.head.getCanonicalHostName
-        } else if (!availableAddresses.isEmpty) {
-          availableAddresses.head.getHostAddress
-        } else {
-          "localhost"
-        }
-      }
+      val host = AddressUtils.getLANHost(prefHost)
       ui.startServer(host, prefPort)
     }
     ui.serverUrl
@@ -77,7 +64,6 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
 
   final def runOnYarn(awaitCompletion: Boolean): Unit = {
     try {
-      //config.setProperty("yarn1.client.tracking.url", provideTrackingURL(null, 8099).toString)
       YarnClient.submitApplicationMaster(config, this.getClass, Array[String](), awaitCompletion)
     } catch {
       case e: Throwable => {
@@ -111,9 +97,8 @@ class DonutApp[T <: DonutAppTask](val config: Properties)(implicit t: ClassTag[T
    * Yarn Master or Local Startup hook
    */
   final override protected def onStartUp(originalArgs: Array[String]): Unit = {
-
     numPartitions = kafkaUtils.getNumLogicalPartitions(topics)
-
+    ui.setServerUrl(getTrackingURL)
     ui.updateAttributes(
       Map(
         "numLogicalPartitions" -> numPartitions,

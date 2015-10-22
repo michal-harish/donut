@@ -18,6 +18,8 @@
 
 package io.amient.utils;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -40,6 +42,13 @@ public class ByteUtils {
                 b.position(bp);
             }
             return a;
+        }
+    }
+
+    public static void bufToStream(ByteBuffer b, OutputStream out) throws IOException {
+        int i = b.position();
+        while (i < b.limit()) {
+            out.write(b.get(i++));
         }
     }
 
