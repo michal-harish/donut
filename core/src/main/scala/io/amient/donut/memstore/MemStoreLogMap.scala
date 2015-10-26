@@ -21,6 +21,7 @@ class MemStoreLogMap(val map: ConcurrentLogHashMap) extends MemStore {
 
   override def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X): Option[X] = {
     map.get(key, mapper) match {
+    //map.touch(key, mapper) match {
       case null => map.contains(key) match {
         case true => Some(null.asInstanceOf[X])
         case false => None

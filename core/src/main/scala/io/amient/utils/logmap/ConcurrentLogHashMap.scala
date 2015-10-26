@@ -263,6 +263,18 @@ class ConcurrentLogHashMap(
 
 
   def get[X](key: ByteBuffer, mapper: (ByteBuffer => X)): X = {
+    reader.lock
+    try {
+      index.get(key) match {
+        case null => null.asInstanceOf[X]
+        case i: COORD => getBlock(i, mapper)
+      }
+    } finally {
+      reader.unlock
+    }
+  }
+
+  def touch[X](key: ByteBuffer, mapper: (ByteBuffer => X)): X = {
     def inTransit(i: COORD) = i._1
 
     reader.lock
