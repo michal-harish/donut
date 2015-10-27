@@ -73,20 +73,14 @@ class KafkaUtils(val config: Properties) {
 
   def findLeader(topic: String, partition: Int): Broker = {
     while (true) {
-      try {
-        val partitionMeta = getPartitionMeta(topic, partition)
-        if (partitionMeta == null) {
-          throw new IllegalArgumentException(s"Empty partition metadata for ${topic}/${partition}")
-        } else if (partitionMeta.leader.isEmpty) {
-          throw new IllegalStateException
-        } else {
-          return partitionMeta.leader.get
-        }
-      } catch {
-        case e: IllegalStateException => {
-          log.warn(s"No partition leader ${topic}/${partition}, retrying in 10s ...")
-          Thread.sleep(10000)
-        }
+      val partitionMeta = getPartitionMeta(topic, partition)
+      if (partitionMeta == null) {
+        throw new IllegalArgumentException(s"Empty partition metadata for ${topic}/${partition}")
+      } else if (partitionMeta.leader.isEmpty) {
+        log.warn(s"No partition leader ${topic}/${partition}, retrying in 10s ...")
+        Thread.sleep(10000)
+      } else {
+        return partitionMeta.leader.get
       }
     }
     throw new IllegalStateException
@@ -97,7 +91,7 @@ class KafkaUtils(val config: Properties) {
     val request = new OffsetRequest(requestInfo, kafka.api.OffsetRequest.CurrentVersion)
     val response = consumer.getOffsetsBefore(request)
     if (response.hasError) {
-      throw new Exception("Error fetching data Offset Data the Broker: " + response.describe(true))
+      throw new IOException("Error fetching data Offset Data the Broker: " + response.describe(true))
     }
     val offsets = response.offsetsGroupedByTopic(topicAndPartition.topic).head._2.offsets
     return offsets(0)
@@ -201,7 +195,7 @@ class KafkaUtils(val config: Properties) {
         case e: Throwable => log.error(s"Problem occurred while communicating with kafka admin api ${host}:${port} ", e)
       }
     }
-    throw new Exception("Could not establish connection with any of the seed brokers")
+    throw new IOException("Could not establish connection with any of the seed brokers")
   }
 
   class PartitionConsumer(topic: String, partition: Int, val leader: Broker, soTimeout: Int, bufferSize: Int, val groupId: String)
@@ -238,7 +232,7 @@ class KafkaUtils(val config: Properties) {
 
   def createProducer[P <: Partitioner](configNameSpace: String)(implicit p: Manifest[P]) = {
     new Producer[Array[Byte], Array[Byte]](new ProducerConfig(new java.util.Properties {
-      config.keySet.asScala.map(_.toString).filter(_.startsWith(s"${configNameSpace}.")).foreach (
+      config.keySet.asScala.map(_.toString).filter(_.startsWith(s"${configNameSpace}.")).foreach(
         param => put(param.substring(configNameSpace.length + 1), config.get(param))
       )
       put("partitioner.class", p.runtimeClass.getName)
