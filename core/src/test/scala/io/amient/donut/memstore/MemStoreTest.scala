@@ -44,7 +44,7 @@ class MemStoreTest extends FlatSpec with Matchers {
     // after 3 puts the order of eviction is 7,8,(9)
     storage.size should be(3)
 
-    storage.get("9000") // refreshes 9 so the order of eviction is 9,7,(8)
+    storage.get("9000", (b) => b) // refreshes 9 so the order of eviction is 9,7,(8)
     storage.put("6000", "D") // pushes out 8
     storage.put("5000", null) // pushes out 7
 
@@ -52,7 +52,7 @@ class MemStoreTest extends FlatSpec with Matchers {
     storage.contains("9000") should be(true)
     storage.contains("6000") should be(true)
     storage.contains("5000") should be(true)
-    storage.get("5000") should be (Some(null))
+    storage.get("5000", (b) => b) should be (Some(null))
   }
 
 

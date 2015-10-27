@@ -18,8 +18,6 @@
 
 package io.amient.donut.memstore
 
-import java.io.DataInputStream
-import java.net.Socket
 import java.nio.ByteBuffer
 
 /**
@@ -38,9 +36,15 @@ trait MemStore {
 
   def contains(key: ByteBuffer): Boolean
 
-  final def get(key: ByteBuffer): Option[ByteBuffer] = get(key, b => b)
-
+  /**
+   * get - simple retrieval operation without side-effect
+   */
   def get[X](key: ByteBuffer, mapper: (ByteBuffer) => X): Option[X]
+
+  /**
+   * touch - similar to get but with side-effect: the entry is moved to the current segment
+   */
+  def touch[X](key: ByteBuffer, mapper: (ByteBuffer) => X): Option[X]
 
   def put(key: ByteBuffer, value: ByteBuffer): Unit
 

@@ -238,9 +238,9 @@ class KafkaUtils(val config: Properties) {
 
   def createProducer[P <: Partitioner](configNameSpace: String)(implicit p: Manifest[P]) = {
     new Producer[Array[Byte], Array[Byte]](new ProducerConfig(new java.util.Properties {
-      config.keySet.asScala.filter(_.toString.startsWith(s"${configNameSpace}.")).foreach {
-        param => put(param, config.get(param))
-      }
+      config.keySet.asScala.map(_.toString).filter(_.startsWith(s"${configNameSpace}.")).foreach (
+        param => put(param.substring(configNameSpace.length + 1), config.get(param))
+      )
       put("partitioner.class", p.runtimeClass.getName)
     }))
   }
