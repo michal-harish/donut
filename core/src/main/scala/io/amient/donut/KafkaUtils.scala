@@ -19,16 +19,16 @@ package io.amient.donut
  */
 
 import java.io.IOException
-import java.nio.ByteBuffer
 import java.util.Properties
 
 import kafka.api._
 import kafka.cluster.Broker
 import kafka.common.{OffsetAndMetadata, TopicAndPartition}
-import kafka.consumer.{Consumer, ConsumerConfig, SimpleConsumer}
+import kafka.consumer.SimpleConsumer
 import kafka.producer.{KeyedMessage, Partitioner, Producer, ProducerConfig}
-import kafka.serializer.DefaultEncoder
 import org.slf4j.LoggerFactory
+
+import scala.collection.JavaConverters._
 
 /**
  * Created by mharis on 14/09/15.
@@ -231,70 +231,18 @@ class KafkaUtils(val config: Properties) {
   }
 
   /**
-   * Kafka producer helpers - we need to treat the compaction-deletion and sync-async asepcts as separate concerns
+   * Kafka producer helper - we need to treat the compaction-deletion and sync-async asepcts as separate concerns
    * because: 1) compacted topic cannot use compression 2) async producers may call the encoder at later stage
    * so cannot use zero-copy buffers
    */
 
-//  def snappySyncProducer[P <: Partitioner](numAcks: Int)(implicit p: Manifest[P]) = {
-//    new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
-//      put("metadata.broker.list", config.get("kafka.brokers"))
-//      put("request.required.acks", numAcks.toString)
-//      put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
-//      put("partitioner.class", p.runtimeClass.getName)
-//      put("compression.codec", "2") //SNAPPY
-//      put("producer.type", "sync")
-//    }))
-//  }
-
-  def snappyAsyncProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 5000)(implicit p: Manifest[P]) = {
+  def createProducer[P <: Partitioner](configNameSpace: String)(implicit p: Manifest[P]) = {
     new Producer[Array[Byte], Array[Byte]](new ProducerConfig(new java.util.Properties {
-      put("metadata.broker.list", config.get("kafka.brokers"))
-      put("request.required.acks", numAcks.toString)
-      put("serializer.class", classOf[DefaultEncoder].getName)
+      config.keySet.asScala.filter(_.toString.startsWith(s"${configNameSpace}.")).foreach {
+        param => put(param, config.get(param))
+      }
       put("partitioner.class", p.runtimeClass.getName)
-      put("compression.codec", "2") //SNAPPY
-      put("producer.type", "async")
     }))
-  }
-
-//  def compactSyncProducer[P <: Partitioner](numAcks: Int)(implicit p: Manifest[P]) = {
-//    new Producer[ByteBuffer, ByteBuffer](new ProducerConfig(new java.util.Properties {
-//      put("metadata.broker.list", config.get("kafka.brokers"))
-//      put("request.required.acks", numAcks.toString)
-//      put("serializer.class", classOf[KafkaByteBufferEncoder].getName)
-//      put("partitioner.class", p.runtimeClass.getName)
-//      put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
-//      put("producer.type", "sync")
-//    }))
-//  }
-
-  def compactAsyncProducer[P <: Partitioner](numAcks: Int, batchSize: Int = 200, queueSize: Int = 10000)(implicit p: Manifest[P]) = {
-    new Producer[Array[Byte], Array[Byte]](new ProducerConfig(new java.util.Properties {
-      put("metadata.broker.list", config.get("kafka.brokers"))
-      put("request.required.acks", numAcks.toString)
-      put("serializer.class", classOf[DefaultEncoder].getName)
-      put("partitioner.class", p.runtimeClass.getName)
-      put("compression.codec", "0") //NONE - Kafka Log Compaction doesn't work for compressed topics
-      put("producer.type", "async")
-      put("batch.num.messages", batchSize.toString)
-      put("queue.buffering.max.messages", queueSize.toString)
-    }))
-  }
-
-  /**
-   * Debuggin tools
-   */
-
-  def createDebugConsumer(topic: String, processor: (ByteBuffer, ByteBuffer) => Unit) = {
-    val consumer = Consumer.create(new ConsumerConfig(new Properties() {
-      put("group.id", "DonutDebugger")
-      put("zookeeper.connect", config.get("zookeeper.connect"))
-    }))
-    val stream = consumer.createMessageStreams(Map(topic -> 1))(topic).head
-    for (msg <- stream) {
-      processor(ByteBuffer.wrap(msg.key), ByteBuffer.wrap(msg.message))
-    }
   }
 
 }

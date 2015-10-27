@@ -43,16 +43,17 @@ This example application lives in a separate repository [GraphStream](https://gi
 
 Each component of a pipeline has to be configured by at least the following parameters. Some of these will typically be shared across multiple components of the pipeline which can be loaded from the environment and some will be decisions made by the component implementation, e.g. kafka.brokers will be most likely same for all components but only long-running streaming components will need restart.containers=true,...
 
-paramter                        | default       | description
+parameter                       | default       | description
 --------------------------------|---------------|------------------------------------------------------------------------------
 **group.id**                    | -             | Consumer group for the total set of all kafka partitions
 **topics**                      | -             | Coma-separated list of kafka topics to subscribe to
 **cogroup**                     | false         | If set to `false` the number of logical partitions is defined by the topic with the highest number of partitions. If set to `true` the number of logical partitions will be the Highest Common Factor of the number of partitions in each subscribed topic.  
 **max.tasks**                   | -             | If set, maximum number of logical partitions - applies also in cogrouped mode 
+**kafka.brokers**               | -             | Coma-separated list of kafka broker addresses for input topics
 **direct.memory.mb**            | 0             | TOTAL DIRECT MEMORY required from YARN cluster to be split between tasks - number of tasks depends on topics partitioning and cogroup and max.tasks arguments
 **task.overhead.memory.mb**     | 256           | Extra heap memory for each task
-**task.priority**               | 0             | Memory to allocate for each processing unit in YARN context [0-10]
-**kafka.brokers**               | -             | Coma-separated list of kafka broker addresses 
+**task.priority**               | 0             | Priority for each processing unit in YARN context [0-10]
+*<producer_namespace>.*         | -             | Subset of configuration for a named kafka producer, e.g. `snappy_producer.compression.coded=2` can be used to create a producer with `KafkaUtils.createProducer[..]("snappy_producer")`
 *yarn1.restart.enabled*         | `false`       | If set to `true` any failed container will be automatically restarted.
 *yarn1.restart.failed.retries*  | 5             | If restart.enabled is `true` any container that completes with non-zero exit status more than `failed.retries` time will cause the entire application to fail
 *yarn1.jvm.args*                | -             | Extra JVM arguments besides the main memory which is managed under the hood as calculated from direct+heap memory as given in each container request
