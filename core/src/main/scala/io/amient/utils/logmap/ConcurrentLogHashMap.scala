@@ -81,21 +81,21 @@ class ConcurrentLogHashMap(
 
   type COORD = (Boolean, Short, Int)
 
-  private[logmap] val index = new VarHashTable(initialCapacityKb = 64, indexLoadFactor)
+  final private[logmap] val index = new VarHashTable(initialCapacityKb = 64, indexLoadFactor)
 
   @volatile private[logmap] var currentSegment: Short = 0
-  private val segmentIndex = new java.util.ArrayList[Short]
-  private val segments = new java.util.ArrayList[Segment]() {
+  final private val segmentIndex = new java.util.ArrayList[Short]
+  final private val segments = new java.util.ArrayList[Segment]() {
     add(newSegmentInstance)
     segmentIndex.add(0)
     currentSegment = 0
   }
 
-  private val lock = new ReentrantReadWriteLock
+  final private val lock = new ReentrantReadWriteLock
 
-  private val reader = lock.readLock
+  final private val reader = lock.readLock
 
-  private val writer = lock.writeLock
+  final private val writer = lock.writeLock
 
   def numSegments = segments.size
 
@@ -355,9 +355,7 @@ class ConcurrentLogHashMap(
       reader.lock
       try {
         val segment = segments.get(currentSegment)
-        if (segment.compactFactor >= 3.0) {
-          segment.compact(3.0)
-        }
+        segment.compact(0.01)
         val newBlock = segment.alloc(valueSize)
         if (newBlock >= 0) {
           return (false, currentSegment, newBlock)

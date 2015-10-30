@@ -38,7 +38,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
 
   implicit def integerToAtomicInt(i: AtomicInteger) = new AtomicInt(i)
 
-  override val capacity = capacityMb * 1024 * 1024
+  final override val capacity = capacityMb * 1024 * 1024
 
   private[logmap] val index = new IntIndex(capacityMb * 8192)
 
@@ -72,8 +72,6 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     case 0 => 1.0
     case x => usedBytes * 1.0 / (x + index.sizeInBytes) //+ lz4Buffer.sizeInBytes.get)
   }
-
-  override def compactFactor: Double = compactableMemory.toDouble / (capacity - memory.position)
 
   private[logmap] val lz4Buffer = new ThreadLocal[ByteBuffer] {
     val sizeInBytes = new AtomicInteger(0)
@@ -273,12 +271,17 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
     }
   }
 
-  override def compact(minCompactToFreeFactor: Double): Boolean = {
+  private def compactCapacityFraction = compactableMemory.toDouble / capacity
+
+  override def compact(minCompactCapacityFraction: Double): Boolean = {
     if (!valid) throw new IllegalStateException("Segment is invalid")
+    if (compactCapacityFraction < minCompactCapacityFraction) {
+      return false
+    }
     lock.writeLock.lock
     try {
-      if (minCompactToFreeFactor > 0) {
-        if (compactFactor < minCompactToFreeFactor || compactableMemory.toDouble / capacity < 0.01) {
+      if (minCompactCapacityFraction > 0) {
+        if (compactCapacityFraction < minCompactCapacityFraction) {
           return false
         }
       }
@@ -294,7 +297,8 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
         throw new IllegalStateException("Segment memory is corrupt!")
       }
       try {
-        val sortedBlockIndex = compactIndex.map(b => (index.get(b), b)).sorted
+        val sortedBlockIndex = new java.util.TreeMap[Int, Int]()
+        compactIndex.foreach(b => sortedBlockIndex.put(index.get(b), b))
         uncompressedSizeInBytes = 0
         compactableMemory = 0
         maxBlockSize.set(0)
@@ -302,7 +306,11 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
         memory.clear
         var prevPointer = -1
         var prevPointerMoved = -1
-        sortedBlockIndex.foreach { case (pointer, b) => {
+        val it = sortedBlockIndex.entrySet.iterator
+        while (it.hasNext) {
+          val i = it.next
+          val pointer = i.getKey
+          val b = i.getValue
           try {
             if (prevPointer > -1 && pointer < prevPointer) {
               throw new IllegalStateException("Illegal block pointer ordering")
@@ -340,7 +348,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
             case e: Throwable => throw new Exception(s"Block ${b}, pointer = ${pointer}", e)
           }
         }
-        }
+        //}
         return true
       } catch {
         case e: Throwable => {
@@ -449,7 +457,7 @@ class SegmentDirectMemoryLZ4(capacityMb: Int, compressMinBlockSize: Int) extends
   override def stats(s: Short): String = {
     s"SEGMENT[${s}] num.entries = ${size}, total.size = ${totalSizeInBytes / 1024 / 1024} Mb " +
       s" (INDEX size = ${index.count}, capacity = ${index.capacityInBytes / 1024 / 1024} Mb)" +
-      s", load.factor = ${loadFactor}},  compact.factor = ${compactFactor}" +
+      s", load.factor = ${loadFactor}},  compact.factor = ${compactCapacityFraction}" +
       s", compression = ${compressRatio * 100.0} %"
   }
 

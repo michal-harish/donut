@@ -162,7 +162,7 @@ class ConcurrentLogHashMapTest extends FlatSpec with Matchers {
         for (i <- (t * stepFactor) to ((t + 1) * stepFactor - 1)) {
           val key = genKey(i, digest)
           val expectedValue = (0 to numWords).map(x => words(i % words.size)).mkString(",")
-          val actualValue = m.touch(key, g)
+          val actualValue = m.get(key, g)
           actualValue should be(expectedValue)
         }
       }

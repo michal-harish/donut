@@ -23,7 +23,7 @@ import java.nio.ByteBuffer
 /**
  * Created by mharis on 01/10/15.
  *
- * Segment is a memory-allocation unit of the log memestore.
+ * Segment is a memory-allocation unit for the ConcurrentLogHashMap
  *
  * All implementations of Segment must be Thread-Safe
  *
@@ -37,7 +37,7 @@ trait Segment {
 
   def usedBytes: Int
 
-  def compact(minCompactToFreeFactor: Double): Boolean
+  def compact(minCompactCapacityFraction: Double): Boolean
 
 //  def compress: Boolean
 
@@ -74,14 +74,6 @@ trait Segment {
    * @return
    */
   def compressRatio: Double = 1.0
-
-  /**
-   * Multiplier of memory that can be freed by compaction in relation to available memory.
-   * E.g. if 80% of the segments memory is filled but half of that can be compacted out, the compactFactor = 2.0
-   * because 40% of memory can be freed by compaction while 20% is available.
-   * @return
-   */
-  def compactFactor: Double = 0.0
 
   /**
    * @param block

@@ -13,3 +13,10 @@ The compression is triggered for a fractoin of tail segments, the current segmen
  
  ![LogHashMap](LogHashMap.png)
  
+
+
+### References
+
+- [Memory Barriers](http://mechanical-sympathy.blogspot.sk/2011/07/memory-barriersfences.html)
+- [java.util.concurrent.atomic.AtomicReferenceArray](https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/atomic/AtomicReferenceArray.html)
+- [java.util.ConcurrentHashMap implementation](http://www.burnison.ca/articles/the-concurrency-of-concurrenthashmap)
