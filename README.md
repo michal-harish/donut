@@ -70,6 +70,7 @@ The project contains one submodule so after cloning you need to run: `git submod
 
 ### TODOs
 
+- Try standalone deployment model
 - Yarn: rack affinity (with Yarn1 abstractino) for logical partitions assignment on the rack co-located with kafka brokers    
 - MemStore: Optimisation of logmap ![Architecture](doc/screenshot-boot-profile.png) + annotate touch with @experimental 
 - MemStore: **Expose Local Storage as Key-Value API** and try mapping a Spark RDD onto it - this requires some basic Application Master UI
